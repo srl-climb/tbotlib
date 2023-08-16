@@ -14,6 +14,7 @@ setup(
         "open3d ==0.13.0",
         "numpy ==1.24",
         "networkx ==3.1",
-        "matplotlib ==3.1.2"
+        "matplotlib ==3.1.2",
+        "scipy ==1.10.1"
     ]
 )
