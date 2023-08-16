@@ -8,7 +8,7 @@ setup(
     packages=find_packages(include=['tbotlib', 'tbotlib.*']),
     install_requires=[
         "qpsolvers ==3.4.0",
-        "numpy-quaternion ==3.5",
+        "numpy-quaternion ==2022.4.3",
         "screeninfo ==0.8.1",
         "alphashape ==1.3.1",
         "open3d ==0.13.0",
