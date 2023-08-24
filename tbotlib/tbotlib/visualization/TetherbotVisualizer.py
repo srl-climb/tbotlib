@@ -17,8 +17,9 @@ class TetherbotVisualizer:
         self._render.light_on = True
         self._render.mesh_show_wireframe = True
 
-        self._material = o3d.visualization.Material()
-        self._material.set_default_properties()
+	# causes error depending on open3d version!
+        #self._material = o3d.visualization.rendering.MaterialRecord()
+        #self._material.set_default_properties()
 
         self._tbobject = None
         self._geometries = []
