@@ -129,7 +129,7 @@ class HyperPlaneShifting(Base):
         
         U   = AT[:, I_0].swapaxes(0,1)
         j   = U.shape[0]
-
+        
         # compute normals
         N = np.empty((self._n,j))
         
