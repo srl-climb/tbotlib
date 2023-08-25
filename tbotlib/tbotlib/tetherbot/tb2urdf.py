@@ -12,7 +12,7 @@ def _create_base(basename: str, prefix: str) -> str:
 
     return ' <link name="'+ prefix + basename + '"/> \n\n'
 
-def _create_link(obj: TbObject, filepath: str, packagename: str, pointradius: float, prefix: str):
+def _create_link(obj: TbObject, filepath: str, stlpath: str, pointradius: float, prefix: str):
 
     urdf =  ' <link name="'+ prefix + obj.name + '"> \n'
 
@@ -59,7 +59,7 @@ def _create_link(obj: TbObject, filepath: str, packagename: str, pointradius: fl
     elif isinstance(obj, (TbAlphashape, TbTrianglemesh)):
         urdf += '  <visual> \n' \
                 '   <geometry> \n' \
-                '    <mesh filename="package://' + packagename + '/urdf/' + obj.name + '.stl" scale="1 1 1"/> \n' \
+                '    <mesh filename="' + stlpath + '/' + obj.name + '.stl" scale="1 1 1"/> \n' \
                 '   </geometry> \n' \
                 '   <material name="Cyan"> \n' \
                 '    <color rgba="0 1.0 1.0 1.0"/> \n' \
@@ -94,7 +94,7 @@ def _create_joint(obj: TbObject, prefix: str):
 
     return urdf
 
-def tb2urdf(tetherbot: TbTetherbot, filepath: str, packagename: str, prefix: str = '') -> str:
+def tb2urdf(tetherbot: TbTetherbot, filepath: str, stlpath: str, prefix: str = '') -> str:
 
     # remove the tethers, we do not need them in the urdf file
     for tether in tetherbot.tethers:
@@ -113,7 +113,7 @@ def tb2urdf(tetherbot: TbTetherbot, filepath: str, packagename: str, prefix: str
     tetherbot.name = 'map'
 
     for child in tetherbot.get_all_children():
-        urdf += _create_link(child, filepath, packagename, 0.01, prefix)
+        urdf += _create_link(child, filepath, stlpath, 0.01, prefix)
         urdf += _create_joint(child, prefix)
 
     urdf += '</robot> \n'
