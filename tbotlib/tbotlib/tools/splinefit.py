@@ -140,7 +140,10 @@ class _SegmentedPoly5Spline(_AbstractSegmentedPolySpline):
         b = np.array([y_0, y_1, y_d1_0, y_d1_1, y_d2_0, y_d2_1])
 
         # calculate coefficients of quintic spline
-        return np.linalg.solve(A, b)
+        try:
+            return np.linalg.solve(A, b)
+        except np.linalg.LinAlgError:
+            return np.linalg.lstsq(A, b)[0]
 
     def evaluate(self, dx: float):
         '''
