@@ -108,9 +108,10 @@ class Workspace():
 
 class TbWorkspace(Workspace):
 
-    def __init__(self, scale: np.ndarray = np.ones(6), padding: np.ndarray = np.zeros(6), **kwargs) -> None:
+    def __init__(self, scale: np.ndarray = np.ones(6), padding: np.ndarray = np.zeros(6), constant_z: bool = False,  **kwargs) -> None:
         
         self._padding = np.array(padding)
+        self._constant_z = constant_z
 
         super().__init__(bounds = np.empty((6,2)), scale = scale, **kwargs)
 
@@ -136,6 +137,11 @@ class TbWorkspace(Workspace):
         self._bounds[:3,0] = median - variance
         self._bounds[:3,1] = median + variance
 
+        if self._constant_z:
+            T._T[2,-1] = self._tetherbot.platform.T_world.r[2]
+            self._bounds[2,0] = 0
+            self._bounds[2,1] = 0
+          
         # Rotation bounds
         median   = self._tetherbot.platform.T_world.decompose()[3:]
         variance = np.clip(np.ones(3) * 180 + self._padding[None,3:], a_min=0, a_max=180)
@@ -166,7 +172,7 @@ class TbWorkspace(Workspace):
         ax.set_zlabel('z')
 
         # Tetherbot
-        TbTetherbotplot(self._tetherbot, ax=ax)
+        # TbTetherbotplot(self._tetherbot, ax=ax)
 
         # Plot theta_x, y, z
         fig = plt.figure()
