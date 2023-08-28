@@ -321,7 +321,7 @@ class TbPlatformPoseGraph(GridGraph):
     def _get_potential_neighbours(self, u: Tuple) -> List[Tuple]:
         
         neighbours = np.round(u + (self._transform.R @ self._neighbours.T).T.astype(self._directions.dtype), 4)
-        
+
         return list(map(tuple, neighbours))
 
     def  _calc_cost(self, u: Tuple, v: Tuple) -> float:
@@ -347,7 +347,7 @@ class TbPlatformPoseGraph(GridGraph):
 
         self._u[:] = u
         self._v[:] = self._goal
-        
+
         return sqrt(sum((self._u[:3] - self._v[:3])**2)) <= self._goal_dist and sqrt(sum((self._u[3:] - self._v[3:])**2)) <= self._goal_skew
 
     def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = np.zeros(6)) -> Path6:
@@ -359,8 +359,9 @@ class TbPlatformPoseGraph(GridGraph):
 
         # Coordinate frame for the search
         R = np.identity(6)
-        R[:3,:3] = basefit(self._tetherbot.A_world, axis = 0)[1]
+        R[:3,:3] = basefit(self._tetherbot.A_world[:, self._tetherbot.tensioned], axis = 0)[1]
         R[3:,3:] = basefit(np.vstack([start[3:],goal[3:]]), axis = 1)[1]
+        # NOTE: a_world of inactive grippers are filtered with the tensioned property
 
         transform = NdTransformMatrix(start, R)
         
@@ -404,13 +405,12 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
         h = max(self._tetherbot.platform.arm.workspace_center.distance(self._goal1[:3]), \
             self._tetherbot.platform.arm.workspace_center.distance(self._goal2[:3])) + \
             ang3(self._tetherbot.platform.T_world.R[:,2], self._goal2[:3]-self._goal1[:3])
-
+        
         return h
 
     def is_goal(self, u: Tuple) -> bool:
         
         self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(u)
-
         qs1 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal1))
         qs2 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal2))
 
@@ -428,8 +428,9 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
         
         # Coordinate frame for the search
         R = np.identity(6)
-        R[:3,:3] = basefit(self._tetherbot.A_world, axis = 0)[1]
-        R[3:,3:] = basefit(np.vstack((start[3:], self._goal1[3:])), axis = 1)[1]
+        R[:3,:3] = basefit(self._tetherbot.A_world[:, self._tetherbot.tensioned], axis = 0)[1]
+        R[3:,3:] = basefit(np.vstack((start[3:], self._goal1[3:])), axis = 1)[1] #R[3:,3:] = basefit(np.vstack([start[3:],goal[3:]]), axis = 1)[1]
+        # NOTE: a_world of inactive grippers are filtered with the tensioned property
 
         transform = NdTransformMatrix(start, R)
         
