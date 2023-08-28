@@ -5,3 +5,4 @@ from .Graph     import SearchGraph, MapGraph, GridGraph, TbArmPoseGraph, TbPlatf
 from .Path      import Path, Path6, ClimbPath
 from .Command   import Command, CommandIdle, CommandMoveArm, CommandMovePlatform, CommandPickGripper, CommandPlaceGripper, CommandList
 from .Planner   import PlanPlatform2Configuration, PlanPlatform2Hold, PlanPlatform2Gripper, PlanPlatform2Pose, PlanArm2Pose, PlanPickAndPlace, PlanPickAndPlace2, FastPlanPickAndPlace, GlobalPlanner, FastPlanPlatform2Configuration
+from .yaml2planner import yaml2planner
