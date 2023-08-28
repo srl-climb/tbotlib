@@ -14,11 +14,10 @@ from typing          import Tuple
 from scipy.optimize  import least_squares
 import numpy as np
 
-
 class TbTetherbot(TbObject):
 
     def __init__(self, platform: TbPlatform = None, grippers: list[TbGripper] = None, tethers: list[TbTether] = None, wall: TbWall = None,
-                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None,  **kwargs) -> None:
+                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, **kwargs) -> None:
         
         super().__init__(children = [platform, wall], **kwargs)
         # do not pass tethers as children, as they will become children of the anchorpoints later
@@ -40,6 +39,7 @@ class TbTetherbot(TbObject):
         self._fdsolver  = QuadraticProgram(self._m, self._n)
         self._cwsolver  = AdaptiveCWSolver(self._m, self._n)
         self._aorder    = aorder
+        self._mode_2d   = mode_2d
         
         if w is None:
             self._w = np.zeros(self._n)
@@ -362,12 +362,21 @@ class TbTetherbot(TbObject):
 
         x0 = T0.decompose()
 
-        self.platform.T_world = TransformMatrix(least_squares(self.fwk_fun, x0=x0 , args=(l, self.A_world, self.B_local), 
-                                                              #bounds=(x0-[0.02,0.02,0.02,3,3,3],x0+[0.02,0.02,0.02,3,3,3]),
-                                                              #verbose=1, 
-                                                              method='lm').x)
+        if self._mode_2d:
+            # z, theta_x, theta_y are constant
+            x = least_squares(self.fwk_fun2, 
+                              x0=x0[[0,1,5]], 
+                              args=(l, self.A_world, self.B_local, x0[2], x0[3], x0[4]), 
+                              method='lm').x
+            x = np.array([x[0], x[1], x0[2], x0[3], x0[4], x[2]])
+        else:
+            x = least_squares(self.fwk_fun, 
+                              x0=x0, 
+                              args=(l, self.A_world, self.B_local, self.platform.T_world.z),
+                              method='lm').x
+            
+        self.platform.T_world = TransformMatrix(x)
         
-
         return self.platform.T_world
     
     def ivk(self, T: TransformMatrix) -> np.ndarray:
@@ -375,7 +384,7 @@ class TbTetherbot(TbObject):
         return np.linalg.norm(self.A_world-T.r[:,np.newaxis]-T.R@self.B_local, axis=0)
 
     @staticmethod
-    def fwk_fun(x: np.ndarray, l: np.ndarray, A_world: np.ndarray, B_local: np.ndarray) -> float:
+    def fwk_fun(x: np.ndarray, l: np.ndarray, A_world: np.ndarray, B_local: np.ndarray, z) -> float:
         
         r = x[:3]
         R = rotM(x[3], x[4], x[5])
@@ -383,6 +392,15 @@ class TbTetherbot(TbObject):
         # numeric objective function according to Pott 2018
         return np.square(np.linalg.norm( A_world - r[:,np.newaxis] - R @ B_local, axis=0)) - np.square(l)
         #return np.sum( np.square(np.linalg.norm( A_world - r[:,np.newaxis] - R @ B_local, axis=0)) - np.square(l) )**2
+
+    @staticmethod
+    def fwk_fun2(x: np.ndarray, l: np.ndarray, A_world: np.ndarray, B_local: np.ndarray, z: float, theta_x: float, theta_y: float) -> float:
+
+        r = np.array([x[0], x[1], z])
+        R = rotM(theta_x, theta_y, x[2])
+        
+        # numeric objective function according to Pott 2018
+        return np.square(np.linalg.norm( A_world - r[:,np.newaxis] - R @ B_local, axis=0)) - np.square(l)
 
     @staticmethod
     def example() -> TbTetherbot:
