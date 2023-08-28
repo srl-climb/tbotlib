@@ -10,7 +10,7 @@ def ang3(u: np.ndarray, v: np.ndarray, output: bool = 0) -> float:
 
     # see https://stackoverflow.com/a/2827466/425458
     c = np.dot(u/np.linalg.norm(u), v/np.linalg.norm(v))
-    print(c)
+
     if output:
         return np.arccos(np.clip(c, -1, 1))
     else:
