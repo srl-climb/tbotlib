@@ -92,7 +92,7 @@ class PlanPlatform2Hold(PlanPlatform2Gripper):
     def plan(self, tetherbot: TbTetherbot, hold_idx: int, commands: CommandList = None) -> Tuple[TbTetherbot, CommandList, Profile]:
 
         # offset because of the gripper docked to the endeffector of the arm
-        offset = tetherbot.grippers[0].dockpoint.r_local - tetherbot.grippers[0].hoverpoint.r_local
+        offset = tetherbot.grippers[0].dockpoint.r_local - tetherbot.grippers[0].grippoint.r_local
 
         goal = np.zeros((2,6))
         
@@ -106,7 +106,7 @@ class PlanPlatform2Hold(PlanPlatform2Gripper):
 
         if exitflag:
             tetherbot.platform.T_world = profile.poses[-1]
- 
+
         return tetherbot, commands, profile
 
 
@@ -127,7 +127,7 @@ class PlanPlatform2Configuration(PlanPlatform2Pose):
         tetherbot.tension(grip_idx, False)
         stability, goal = self._workspace.calculate(tetherbot)
         tetherbot.tension(grip_idx, True)
-        
+
         if stability > 0:
             tetherbot, profile, exitflag = super(PlanPlatform2Pose, self).plan(tetherbot, goal)
         else:
@@ -280,7 +280,6 @@ class PlanPickAndPlace(AbstractPlanner):
 class PlanPickAndPlace2(PlanPickAndPlace):
 
     def plan(self, tetherbot: TbTetherbot, grip_idx: int, hold_idx: int, commands: CommandList = None, start_state: int = 0, goal_state: int = 10) -> Tuple[TbTetherbot, CommandList, bool]:
-
         # States
         # 0:  move platform into stable position
         # 1:  move platform close to gripper
@@ -294,74 +293,77 @@ class PlanPickAndPlace2(PlanPickAndPlace):
         # 9:  place gripper
         # 10: move arm to gripper hoverpoint
 
-        state = start_state
-        while state != goal_state:
+        print('Plan pick and place of Gripper (' + str(grip_idx) + ') to Hold (' + str(hold_idx) + ')')
 
-            if state == 0:
+        next_state = start_state
+        while True:
+            current_state = next_state
+
+            if current_state == 0:
                 # move platform into stable position
                 tetherbot, commands, exitflag = self._platform2configuration.plan(tetherbot, grip_idx, commands)
-                state = 1
-            elif state == 1:
+                next_state = 1
+            elif current_state == 1:
                 # untension the tethers of the gripper
                 tetherbot.tension(grip_idx, False)
                 # move platform close to gripper
                 tetherbot, commands, exitflag = self._platform2gripper.plan(tetherbot, grip_idx, commands)
-                state = 2
+                next_state = 2
                 # NOTE: Actual tensioning happens during CommandPickGripper and CommandPlaceGripper,
                 # we only (un)tension the gripper here so that the path planner keeps the platform at a pose which is stable without the gripper to be picked/placed
-            elif state == 2:
+            elif current_state == 2:
                 # move arm to gripper hoverpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
-                state = 3
-            elif state == 3:
+                next_state = 3
+            elif current_state == 3:
                 # move arm to gripper dockpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].dockpoint.T_world, commands)
-                state = 4
-            elif state == 4:
+                next_state = 4
+            elif current_state == 4:
                 # pick gripper
                 tetherbot.pick(grip_idx)
                 if commands is not None:
                     commands.append(CommandPickGripper(grip_idx))
-                state = 5
-            elif state == 5:
+                next_state = 5
+            elif current_state == 5:
                 # move arm with gripper to hoverpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
-                state = 6
-            elif state == 6:
+                next_state = 6
+            elif current_state == 6:
                 # move platform close to hold
                 tetherbot, commands, exitflag = self._platform2hold.plan(tetherbot, hold_idx, commands)
-                state = 7
-            elif state == 7:
+                next_state = 7
+            elif current_state == 7:
                 # move gripper with arm to hoverpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(
                     tetherbot, 
                     TransformMatrix(tetherbot.wall.holds[hold_idx].hoverpoint.r_world + tetherbot.grippers[grip_idx].dockpoint.r_local - tetherbot.grippers[grip_idx].grippoint.r_local), 
                     commands)
-                state = 8
-            elif state == 8:
+                next_state = 8
+            elif current_state == 8:
                 # move gripper with arm to grippoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(
                     tetherbot,
                     TransformMatrix(tetherbot.wall.holds[hold_idx].grippoint.r_world + tetherbot.grippers[grip_idx].dockpoint.r_local - tetherbot.grippers[grip_idx].grippoint.r_local), 
                     commands)
-                state = 9
-            elif state == 9:
+                next_state = 9
+            elif current_state == 9:
                 # place gripper
                 tetherbot.place(grip_idx, hold_idx, correct_pose = True)
                 if commands is not None:
                     commands.append(CommandPlaceGripper(grip_idx, hold_idx))
-                state = 10
-            elif state == 10:
+                next_state = 10
+            elif current_state == 10:
                 # tension the tethers of the gripper
                 tetherbot.tension(grip_idx, True)
                 # move arm to gripper hoverpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
-                state = 0
+                next_state = 0
 
             if exitflag is None: 
                 return tetherbot, commands, False
-
-        return tetherbot, commands, True    
+            if current_state == goal_state:
+                return tetherbot, commands, True    
 
 class FastPlanPickAndPlace(AbstractPlanner):
 
@@ -444,8 +446,6 @@ class GlobalPlanner(AbstractPlanner):
         if commands is not None and exitflag:
 
             for grip_idx, hold_idx in zip(path.grip_idc, path.hold_idc):
-                print('for tetherbot at', tetherbot.platform.T_world.decompose())
-                print('plan gripper', grip_idx, 'to hold', hold_idx)
                 tetherbot, commands, exitflag = self._localplanner.plan(tetherbot, grip_idx, hold_idx, commands)
     
                 if exitflag == False:
