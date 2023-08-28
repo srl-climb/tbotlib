@@ -297,7 +297,7 @@ class ProfileQPlatform(AbstractProfile):
 
         self.smoother = smoother
         self.t_t = t_t
-        self.t_t_max = 600 #5 min
+        self.t_t_max = 1200 #5 min
         self.qlim = qlim
         self.mode = mode
 
@@ -305,9 +305,9 @@ class ProfileQPlatform(AbstractProfile):
 
         if coordinates.shape[1] == 1:
             return np.array([0]), None, None, coordinates
-
+        
         coordinates = self.smoother.smooth(coordinates) # column-wise
-
+        
         # create independent copy
         tetherbot = deepcopy(tetherbot)
 
@@ -319,7 +319,6 @@ class ProfileQPlatform(AbstractProfile):
             t_t = np.sum(np.linalg.norm(np.diff(coordinates), axis=0))/self.v_t
         else:
             t_t = self.t_t
-
 
         # calculate splines
         exitflag = False
@@ -336,7 +335,7 @@ class ProfileQPlatform(AbstractProfile):
                 exitflag = True
                 # retry with longer t_t if limits are not met
                 if exitflag == False:
-                    t_t = t_t + 5
+                    t_t = t_t + 20
                     break
 
         # transform jointspace to coordinates
@@ -371,7 +370,7 @@ class ProfileQPlatform(AbstractProfile):
             # forward kinematics
             T0 = tetherbot.fwk(qs[:,i], T0)
             # use the result from the previous iteration as the guess for the next
-                
+               
             coordinates[:,i] = T0.decompose()
 
         return coordinates
