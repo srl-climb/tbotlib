@@ -4,6 +4,7 @@ tbotlib/__init__.py
 tbotlib.egg-info/PKG-INFO
 tbotlib.egg-info/SOURCES.txt
 tbotlib.egg-info/dependency_links.txt
+tbotlib.egg-info/requires.txt
 tbotlib.egg-info/top_level.txt
 tbotlib/fdsolvers/CW.py
 tbotlib/fdsolvers/FD.py
@@ -22,6 +23,7 @@ tbotlib/navigation/Profile.py
 tbotlib/navigation/Smoother.py
 tbotlib/navigation/Workspace.py
 tbotlib/navigation/__init__.py
+tbotlib/navigation/yaml2planner.py
 tbotlib/plot/Plot3d.py
 tbotlib/plot/TbFrameplot.py
 tbotlib/plot/TbGeometryplot.py
