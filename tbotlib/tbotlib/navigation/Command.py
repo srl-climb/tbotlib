@@ -4,14 +4,14 @@ from ..tetherbot    import TbTetherbot
 from ..tools        import isave, iload
 from .Profile       import Profile
 from typing         import Type, List
-from abc            import ABC, abstractclassmethod, abstractmethod
+from abc            import ABC, abstractmethod
 from datetime       import datetime
 from time           import sleep
 import os
 
 class Command(ABC):
 
-    def do(self, tetherbot: TbTetherbot) -> bool:
+    def do(self, tetherbot: TbTetherbot, **_) -> bool:
 
         return False
 
@@ -27,24 +27,29 @@ class CommandMovePlatform(Command):
 
         self._targetposes = profile.poses
         self._targetpose = TransformMatrix()
-
-    def do(self, tetherbot: TbTetherbot) -> bool:
-
-        if self._targetposes:
-            self._targetpose = self._targetposes.pop(0)
-            tetherbot.platform.T_world = self._targetpose
-            return False
         
-        return True
+        self._length = len(self._targetposes)
+        self._current = 0
+
+    def do(self, tetherbot: TbTetherbot, step: int = 1, **_) -> bool:
+
+        self._targetpose = self._targetposes[self._current]
+        tetherbot.platform.T_world = self._targetpose
+
+        if self._current == self._length-1:
+            return True
+        else:
+            self._current = min([self._current + step, self._length-1])
+            return False
 
     def print(self) -> None:
 
-        print('Move platform to: ' + 'x = ' + str(round(self._targetpose.r[0],3)) + ', ' +
-                                     'y = ' + str(round(self._targetpose.r[1],3)) + ', ' +
-                                     'z = ' + str(round(self._targetpose.r[2],3)) + ', ' +
-                                     'theta_x = ' + str(round(self._targetpose.decompose(order = 'xyz')[0],2)) + ', ' +
-                                     'theta_y = ' + str(round(self._targetpose.decompose(order = 'xyz')[1],2)) + ', ' +
-                                     'theta_z = ' + str(round(self._targetpose.decompose(order = 'xyz')[2],2)))
+        print('Move platform to: ' + 'x = ' + str(round(self._targetposes[-1].x,3)) + ', ' +
+                                     'y = ' + str(round(self._targetposes[-1].y,3)) + ', ' +
+                                     'z = ' + str(round(self._targetposes[-1].z,3)) + ', ' +
+                                     'theta_x = ' + str(round(self._targetposes[-1].theta_x,2)) + ', ' +
+                                     'theta_y = ' + str(round(self._targetposes[-1].tetha_y,2)) + ', ' +
+                                     'theta_z = ' + str(round(self._targetposes[-1].tetha_z,2)))
 
 
 class CommandMoveArm(Command):
@@ -54,23 +59,26 @@ class CommandMoveArm(Command):
         self._targetposes = profile.poses
         self._targetpose = TransformMatrix()
 
-    def do(self, tetherbot: TbTetherbot) -> bool:
+        self._length = len(self._targetposes)
+        self._current = 0
 
-        if self._targetposes:
-            self._targetpose = self._targetposes.pop(0)
-            tetherbot.platform.arm.qs = tetherbot.platform.arm.ivk(self._targetpose)
+    def do(self, tetherbot: TbTetherbot, step: int = 1, **_) -> bool:
+
+        self._targetpose = self._targetposes[self._current]
+        tetherbot.platform.arm.qs = tetherbot.platform.arm.ivk(self._targetpose)
+
+        if self._current == self._length-1:
+            return True
+        else:
+            self._current = min([self._current + step, self._length-1])
             return False
-        
-        return True
 
     def print(self) -> None:
 
-        print('Move arm to: ' + 'x = ' + str(round(self._targetpose.r[0],3)) + ', ' +
-                                'y = ' + str(round(self._targetpose.r[1],3)) + ', ' +
-                                'z = ' + str(round(self._targetpose.r[2],3)) + ', ' +
-                                'theta_x = ' + str(round(self._targetpose.decompose(order = 'xyz')[0],2)) + ', ' +
-                                'theta_y = ' + str(round(self._targetpose.decompose(order = 'xyz')[1],2)) + ', ' +
-                                'theta_z = ' + str(round(self._targetpose.decompose(order = 'xyz')[2],2)))
+        print('Move arm to: ' + 'x = ' + str(round(self._targetposes[-1].x,3)) + ', ' +
+                                'y = ' + str(round(self._targetposes[-1].y,3)) + ', ' +
+                                'z = ' + str(round(self._targetposes[-1].z,3)))
+
 
 class CommandPickGripper(Command):
 
@@ -78,7 +86,7 @@ class CommandPickGripper(Command):
 
         self._grip_idx = grip_idx
 
-    def do(self, tetherbot: TbTetherbot) -> bool:
+    def do(self, tetherbot: TbTetherbot, **_) -> bool:
 
         tetherbot.pick(self._grip_idx)
         tetherbot.tension(self._grip_idx, False)
@@ -97,7 +105,7 @@ class CommandPlaceGripper(Command):
         self._grip_idx = grip_idx
         self._hold_idx = hold_idx
 
-    def do(self, tetherbot: TbTetherbot) -> bool:
+    def do(self, tetherbot: TbTetherbot, **_) -> bool:
 
         tetherbot.place(grip_idx = self._grip_idx, hold_idx = self._hold_idx, correct_pose = False)
         tetherbot.tension(self._grip_idx, True)
@@ -115,7 +123,7 @@ class CommandIdle(Command):
 
         self._dt = dt
 
-    def do(self, tetherbot: TbTetherbot) -> bool:
+    def do(self, tetherbot: TbTetherbot, **_) -> bool:
 
         sleep(self._dt)
 
