@@ -46,6 +46,36 @@ class TransformMatrix(NdTransformMatrix):
         return self._T[:3,2]
     
     @property
+    def x(self) -> float:
+
+        return self._T[0,3]
+    
+    @property
+    def y(self) -> float:
+
+        return self._T[1,3]
+    
+    @property
+    def z(self) -> float:
+
+        return self._T[2,3]
+    
+    @property
+    def theta_x(self) -> float:
+
+        return self.decompose()[3]
+    
+    @property
+    def tetha_y(self) -> float:
+
+        return self.decompose()[4]
+    
+    @property
+    def tetha_z(self) -> float:
+
+        return self.decompose()[5]
+    
+    @property
     def q(self) -> np.ndarray:
 
         return qu.as_float_array(qu.from_rotation_matrix(self.R))
