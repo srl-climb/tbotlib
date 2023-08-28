@@ -108,10 +108,10 @@ class Workspace():
 
 class TbWorkspace(Workspace):
 
-    def __init__(self, scale: np.ndarray = np.ones(6), padding: np.ndarray = np.zeros(6), constant_z: bool = False,  **kwargs) -> None:
+    def __init__(self, scale: np.ndarray = np.ones(6), padding: np.ndarray = np.zeros(6), mode_2d: bool = False,  **kwargs) -> None:
         
         self._padding = np.array(padding)
-        self._constant_z = constant_z
+        self._mode_2d = mode_2d
 
         super().__init__(bounds = np.empty((6,2)), scale = scale, **kwargs)
 
@@ -136,11 +136,6 @@ class TbWorkspace(Workspace):
         
         self._bounds[:3,0] = median - variance
         self._bounds[:3,1] = median + variance
-
-        if self._constant_z:
-            T._T[2,-1] = self._tetherbot.platform.T_world.r[2]
-            self._bounds[2,0] = 0
-            self._bounds[2,1] = 0
           
         # Rotation bounds
         median   = self._tetherbot.platform.T_world.decompose()[3:]
@@ -148,6 +143,15 @@ class TbWorkspace(Workspace):
 
         self._bounds[3:,0] = median - variance
         self._bounds[3:,1] = median + variance
+
+        if self._mode_2d:
+            T._T[2,-1] = self._tetherbot.platform.T_world.r[2]
+            self._bounds[2,0] = 0
+            self._bounds[2,1] = 0
+            self._bounds[3,0] = self._tetherbot.platform.T_world.decompose()[3]
+            self._bounds[3,1] = self._tetherbot.platform.T_world.decompose()[3]
+            self._bounds[4,0] = self._tetherbot.platform.T_world.decompose()[4]
+            self._bounds[4,1] = self._tetherbot.platform.T_world.decompose()[4]
 
         return super().calculate(T)
 
@@ -185,16 +189,3 @@ class TbWorkspace(Workspace):
         ax.set_zlabel('theta_z')
 
         plt.show()
-
-
-
-""" print(np.round(self._bounds,2))
-
-# Position bounds
-self._bounds[:3,0] = np.min(A_grid, axis=1) - self._padding[None,:3]
-self._bounds[:3,1] = np.max(A_grid, axis=1) + self._padding[None,:3]
-    
-# Rotation bounds
-self._bounds[3:,0] = self._tetherbot.platform.T_world.decompose()[3:] -np.ones(3) * 180 - self._padding[None,3:]
-self._bounds[3:,1] = self._tetherbot.platform.T_world.decompose()[3:] +np.ones(3) * 180 + self._padding[None,3:]
-print(np.round(self._bounds,2)) """
