@@ -297,7 +297,7 @@ class ProfileQPlatform(AbstractProfile):
 
         self.smoother = smoother
         self.t_t = t_t
-        self.t_t_max = 1200 #5 min
+        self.t_t_max = 2400 #5 min
         self.qlim = qlim
         self.mode = mode
 
