@@ -20,6 +20,10 @@ class Command(ABC):
 
         pass
 
+    def reset(self) -> None:
+
+        pass
+
 
 class CommandMovePlatform(Command):
 
@@ -51,6 +55,10 @@ class CommandMovePlatform(Command):
                                      'theta_y = ' + str(round(self._targetposes[-1].tetha_y,2)) + ', ' +
                                      'theta_z = ' + str(round(self._targetposes[-1].tetha_z,2)))
 
+    def reset(self) -> None:
+        
+        self._current = 0
+
 
 class CommandMoveArm(Command):
 
@@ -78,6 +86,10 @@ class CommandMoveArm(Command):
         print('Move arm to: ' + 'x = ' + str(round(self._targetposes[-1].x,3)) + ', ' +
                                 'y = ' + str(round(self._targetposes[-1].y,3)) + ', ' +
                                 'z = ' + str(round(self._targetposes[-1].z,3)))
+        
+    def reset(self) -> None:
+        
+        self._current = 0
 
 
 class CommandPickGripper(Command):
