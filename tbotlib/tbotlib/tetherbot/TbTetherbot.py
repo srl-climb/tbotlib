@@ -40,6 +40,8 @@ class TbTetherbot(TbObject):
         self._cwsolver  = AdaptiveCWSolver(self._m, self._n)
         self._aorder    = aorder
         self._mode_2d   = mode_2d
+        self._l_min     = l_min
+        self._l_max     = l_max
         
         if w is None:
             self._w = np.zeros(self._n)
@@ -194,6 +196,16 @@ class TbTetherbot(TbObject):
     def aorder(self) -> Ring:
 
         return self._aorder
+    
+    @property
+    def l_min(self) -> float:
+
+        return self._l_min
+    
+    @property
+    def l_max(self) -> float:
+
+        return self._l_max
 
     def forces(self, w: np.ndarray = None) -> tuple[np.ndarray, int]:
 
@@ -219,7 +231,11 @@ class TbTetherbot(TbObject):
         if W is None:
             W = self.W
 
-        return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
+        l = self.l
+        if all(self._l_min < l) and all(l < self._l_max):
+            return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
+        else:
+            return False, -np.inf
 
     def tension(self, idx_gripper: int, value: bool) -> None:
         
