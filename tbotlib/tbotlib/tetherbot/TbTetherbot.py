@@ -17,7 +17,7 @@ import numpy as np
 class TbTetherbot(TbObject):
 
     def __init__(self, platform: TbPlatform = None, grippers: list[TbGripper] = None, tethers: list[TbTether] = None, wall: TbWall = None,
-                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, **kwargs) -> None:
+                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, **kwargs) -> None:
         
         super().__init__(children = [platform, wall], **kwargs)
         # do not pass tethers as children, as they will become children of the anchorpoints later
