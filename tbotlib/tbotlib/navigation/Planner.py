@@ -29,7 +29,7 @@ class LocalPlanner(AbstractPlanner):
         self._profiler  = profiler
 
     def plan(self, tetherbot: TbTetherbot, goal: np.ndarray) -> tuple[TbTetherbot, Profile, bool]:
-
+        
         path     = self._graph.search(tetherbot, start = None, goal = goal)
         profile  = self._profiler.calculate(path, tetherbot=tetherbot)
         exitflag = profile is not None
@@ -174,7 +174,7 @@ class PlanArm2Pose(LocalPlanner):
         super().__init__(graph, profiler, **kwargs)
 
     def plan(self, tetherbot: TbTetherbot, pose: TransformMatrix, commands: CommandList = None) -> Tuple[TbTetherbot, CommandList, Profile]:
-
+        
         tetherbot, profile, exitflag = super().plan(tetherbot, pose.decompose())
 
         if commands is not None and exitflag:

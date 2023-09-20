@@ -23,3 +23,4 @@ from .io                            import isave, iload
 from .insideout                     import insideout
 from .gridgenerators                import circulargrid, meshgrid
 from .splinefit                     import polysplinefit
+from .lineseg_distance              import lineseg_distance

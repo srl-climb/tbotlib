@@ -1,6 +1,6 @@
 from __future__      import annotations
 from ..fdsolvers     import QuadraticProgram, HyperPlaneShifting, CornerCheck, QuickHull, AdaptiveCWSolver
-from ..tools         import Ring, Mapping, hyperRectangle, basefit, inpie, inrectangle, perp, ang3
+from ..tools         import Ring, Mapping, hyperRectangle, basefit, inpie, inrectangle, perp, ang3, lineseg_distance
 from ..matrices      import StructureMatrix, TransformMatrix, rotM
 from ..visualization import TetherbotVisualizer
 from .TbObject       import TbObject
@@ -17,7 +17,8 @@ import numpy as np
 class TbTetherbot(TbObject):
 
     def __init__(self, platform: TbPlatform = None, grippers: list[TbGripper] = None, tethers: list[TbTether] = None, wall: TbWall = None,
-                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, **kwargs) -> None:
+                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, 
+                 tether_collision_margin: float = -1.0, **kwargs) -> None:
         
         super().__init__(children = [platform, wall], **kwargs)
         # do not pass tethers as children, as they will become children of the anchorpoints later
@@ -42,6 +43,7 @@ class TbTetherbot(TbObject):
         self._mode_2d   = mode_2d
         self._l_min     = l_min
         self._l_max     = l_max
+        self._tether_collision_margin = tether_collision_margin
         
         if w is None:
             self._w = np.zeros(self._n)
@@ -236,6 +238,17 @@ class TbTetherbot(TbObject):
             return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
         else:
             return False, -np.inf
+        
+    def tether_collision(self) -> bool:
+        
+        if self._tether_collision_margin < 0:
+            return False
+
+        for tether in self._tethers:
+            if lineseg_distance(self.platform.arm.links[-1].r_world, tether.anchorpoints[0].r_world, tether.anchorpoints[1].r_world) < self._tether_collision_margin:
+                return True
+        
+        return False
 
     def tension(self, idx_gripper: int, value: bool) -> None:
         

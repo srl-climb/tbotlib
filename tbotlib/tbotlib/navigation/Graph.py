@@ -125,7 +125,7 @@ class SearchGraph(ABC):
         return True
 
     def search(self, start: Tuple, goal: Tuple) -> list[tuple[float]]: 
-
+        
         # ASTAR SEARCH ALGORITHM
         # implementation based on https://code.activestate.com/recipes/578919-python-a-pathfinding-with-binary-heap/
         self._start = start
@@ -455,8 +455,14 @@ class TbArmPoseGraph(GridGraph):
 
         # reachable with arm?
         qs = self._tetherbot.platform.arm.ivk(TransformMatrix(u))
+        reachable = self._tetherbot.platform.arm.valid(qs)
+
+        # collision with tether?
+        if reachable:
+            self._tetherbot.platform.arm.qs = qs
+            reachable = not self._tetherbot.tether_collision()
         
-        return self._tetherbot.platform.arm.valid(qs)
+        return reachable
 
     def is_goal(self, u: Tuple) -> bool:
 
@@ -465,7 +471,8 @@ class TbArmPoseGraph(GridGraph):
     def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = np.zeros(3)) -> Path6:
         
         self._tetherbot = deepcopy(tetherbot)
-
+        self._tetherbot._update_transforms()
+        
         if start is None:
             start = self._tetherbot.platform.arm.links[-1].T_world.r
  
