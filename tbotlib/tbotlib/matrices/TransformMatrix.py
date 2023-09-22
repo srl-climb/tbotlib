@@ -66,12 +66,12 @@ class TransformMatrix(NdTransformMatrix):
         return self.decompose()[3]
     
     @property
-    def tetha_y(self) -> float:
+    def theta_y(self) -> float:
 
         return self.decompose()[4]
     
     @property
-    def tetha_z(self) -> float:
+    def theta_z(self) -> float:
 
         return self.decompose()[5]
     
