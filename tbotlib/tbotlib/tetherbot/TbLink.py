@@ -2,21 +2,25 @@ from __future__     import annotations
 from ..matrices     import DenavitHartenberg
 from ..tools        import between
 from .TbPart        import TbPart
+from .TbPoint       import TbDockPoint
 from abc            import ABC
 
 
 class TbLink(TbPart, ABC):
 
-    def __init__(self, phi: float = 0, alpha: float = 0, a: float = 0, d: float = 0, q0: float = 0, qlim: list[float] = None, **kwargs) -> None:
+    def __init__(self, phi: float = 0, alpha: float = 0, a: float = 0, d: float = 0, q0: float = 0, qlim: list[float] = None, dockpoint: TbDockPoint = None, **kwargs) -> None:
 
         if qlim is None:
             qlim = [0,1]
-        
+        if dockpoint is None:
+            dockpoint = TbDockPoint()
+
         self._dhp       = DenavitHartenberg(phi, alpha, a, d)
         self._q0        = between(q0, qlim)[1]
         self._qlim      = qlim
+        self._dockpoint = dockpoint
 
-        super().__init__(T_local = None, **kwargs)
+        super().__init__(children = [dockpoint], T_local = None, **kwargs)
 
     @property
     def q(self) -> float:
@@ -52,6 +56,11 @@ class TbLink(TbPart, ABC):
     def qlim(self, value: list[float]) -> None:
 
         self._qlim = value
+
+    @property
+    def dockpoint(self) -> TbDockPoint:
+
+        return self._dockpoint
 
     def _update_transforms(self):
 

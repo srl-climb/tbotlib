@@ -245,7 +245,7 @@ class TbTetherbot(TbObject):
             return False
 
         for tether in self._tethers:
-            if lineseg_distance(self.platform.arm.links[-1].r_world, tether.anchorpoints[0].r_world, tether.anchorpoints[1].r_world) < self._tether_collision_margin:
+            if lineseg_distance(self.platform.arm.links[-1].dockpoint.r_world, tether.anchorpoints[0].r_world, tether.anchorpoints[1].r_world) < self._tether_collision_margin:
                 return True
         
         return False
@@ -263,12 +263,12 @@ class TbTetherbot(TbObject):
         #self.tension(grip_idx, False)   
 
         if correct_pose:    
-            self.grippers[grip_idx].T_local = TransformMatrix(self.platform.arm.links[-1].T_local.T @  self.grippers[grip_idx].dockpoint.T_local.Tinv)
+            self.grippers[grip_idx].T_local = TransformMatrix(self.platform.arm.links[-1].dockpoint.T_local.T @  self.grippers[grip_idx].dockpoint.T_local.Tinv)
         else:
             # reset T_local to maintain T_world
-            self.grippers[grip_idx].T_local = TransformMatrix(self.platform.arm.links[-1].T_world.Tinv @ self.grippers[grip_idx].T_world.T)
+            self.grippers[grip_idx].T_local = TransformMatrix(self.platform.arm.links[-1].dockpoint.T_world.Tinv @ self.grippers[grip_idx].T_world.T)
 
-        self.grippers[grip_idx].parent  = self.platform.arm.links[-1]
+        self.grippers[grip_idx].parent  = self.platform.arm.links[-1].dockpoint
 
 
     def place(self, grip_idx: int, hold_idx: int, correct_pose: bool = False) -> None:
