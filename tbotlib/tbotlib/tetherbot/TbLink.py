@@ -19,7 +19,7 @@ class TbLink(TbPart, ABC):
         self._q0        = between(q0, qlim)[1]
         self._qlim      = qlim
         self._dockpoint = dockpoint
-
+        
         super().__init__(children = [dockpoint], T_local = None, **kwargs)
 
     @property

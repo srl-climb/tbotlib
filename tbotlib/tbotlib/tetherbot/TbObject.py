@@ -53,7 +53,7 @@ class TbObject:
 
     @parent.setter
     def parent(self, value: Type[TbObject]) -> None:
-        
+
         # remove self from old parent's children
         if self._parent is not None:
             self._parent._remove_child(self)
