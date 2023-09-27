@@ -261,15 +261,14 @@ class TbTetherbot(TbObject):
     def pick(self, grip_idx: int, correct_pose: bool = False) -> None:
       
         #self.tension(grip_idx, False)   
-       
+
         if correct_pose:    
-            print('hi')
             self.grippers[grip_idx].T_local = TransformMatrix(self.grippers[grip_idx].dockpoint.T_local.Tinv)
         else:
             # reset T_local to maintain T_world
-            self.grippers[grip_idx].T_local = TransformMatrix(self.platform.arm.links[-1].dockpoint.T_world.Tinv @ self.grippers[grip_idx].T_world.T)
+            self.grippers[grip_idx].T_local = TransformMatrix(self.platform.arm.links[-1].T_world.Tinv @ self.grippers[grip_idx].T_world.T)
 
-        self.grippers[grip_idx].parent  = self.platform.arm.links[-1].dockpoint
+        self.grippers[grip_idx].parent  = self.platform.arm.links[-1]
 
 
     def place(self, grip_idx: int, hold_idx: int, correct_pose: bool = False) -> None:
@@ -277,12 +276,12 @@ class TbTetherbot(TbObject):
         #self.tension(grip_idx, True)
 
         if correct_pose:
-            self.grippers[grip_idx].T_local = TransformMatrix(self.grippers[grip_idx].grippoint.T_local.Tinv)
+            self.grippers[grip_idx].T_local = TransformMatrix(self.wall.holds[hold_idx].grippoint.T_local.T @  self.grippers[grip_idx].grippoint.T_local.Tinv)
         else:
             # reset T_local to maintain T_world
             self.grippers[grip_idx].T_local = TransformMatrix(self.wall.holds[hold_idx].T_world.Tinv @ self.grippers[grip_idx].T_world.T)
 
-        self.grippers[grip_idx].parent = self.wall.holds[hold_idx].grippoint
+        self.grippers[grip_idx].parent = self.wall.holds[hold_idx]
 
     def place_all(self, hold_idc: list[int], correct_pose: bool = True) -> None:
 
