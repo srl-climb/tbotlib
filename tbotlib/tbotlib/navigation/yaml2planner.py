@@ -26,7 +26,7 @@ def yaml2planner(file: str):
     arm_profiler = ProfileQArm(arm_smoother, 
                                 simulation_dt, 
                                 t_t = None, 
-                                v_t = data['platform']['profiler']['v_t'],
+                                v_t = data['arm']['profiler']['v_t'],
                                 qlim = data['arm']['profiler']['q_lim'])
     
     # local planners
