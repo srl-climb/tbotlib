@@ -228,13 +228,18 @@ class TbTetherbot(TbObject):
         
         return np.linalg.norm(np.sum(F, axis=2), axis=1), exitflag
 
-    def stability(self, W: np.ndarray = None) -> Tuple(bool, float):
+    def stability(self, W: np.ndarray = None, ignore_tether_lengths: bool = False) -> Tuple(bool, float):
 
         if W is None:
             W = self.W
 
-        l = self.l
-        if all(self._l_min < l) and all(l < self._l_max):
+        if ignore_tether_lengths:
+            inlimit = True
+        else:
+            l = self.l
+            inlimit = all(self._l_min < l) and all(l < self._l_max) 
+
+        if inlimit:
             return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
         else:
             return False, -np.inf
