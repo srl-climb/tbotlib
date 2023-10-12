@@ -14,19 +14,17 @@ def yaml2planner(file: str):
     simulation_dt = data['simulation']['dt']
 
     # smoothing algorithms
-    platform_smoother = BsplineSmoother(data['platform']['smoothing']['ds'])
-    arm_smoother = BsplineSmoother(data['arm']['smoothing']['ds'])
+    platform_smoother = BsplineSmoother(data['platform']['smoothing']['ds'], data['platform']['smoothing']['k'])
+    arm_smoother = BsplineSmoother(data['arm']['smoothing']['ds'], data['arm']['smoothing']['k'])
 
     # trajectory generators
     platform_profiler = ProfileQPlatform(platform_smoother, 
                                             simulation_dt, 
-                                            t_t = None, 
-                                            v_t = data['platform']['profiler']['v_t'],
+                                            iter_max = data['platform']['profiler']['iter_max'],
                                             qlim = data['platform']['profiler']['q_lim'])
     arm_profiler = ProfileQArm(arm_smoother, 
                                 simulation_dt, 
-                                t_t = None, 
-                                v_t = data['arm']['profiler']['v_t'],
+                                iter_max = data['arm']['profiler']['iter_max'], 
                                 qlim = data['arm']['profiler']['q_lim'])
     
     # local planners

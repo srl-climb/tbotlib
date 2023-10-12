@@ -291,63 +291,87 @@ class ParallelProfile6(AbstractProfile):
 
 class ProfileQPlatform(AbstractProfile):
 
-    def __init__(self, smoother: AbstractSmoother, dt: float, v_t: float = None, t_t: float = None, qlim: list = None, mode: str = 'platform') -> None:
+    def __init__(self, smoother: AbstractSmoother, dt: float, qlim: list = None, iter_max: int = 1) -> None:
         
-        super().__init__(None, None, v_t, dt)
+        super().__init__(None, None, None, dt)
 
         self.smoother = smoother
-        self.t_t = t_t
-        self.t_t_max = 2400 #5 min
-        self.qlim = qlim
-        self.mode = mode
+        self.iter_max = iter_max
+        self.qlim = np.array(qlim)
 
     def _calculate(self, coordinates: np.ndarray, tetherbot: TbTetherbot = None, **_) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
         if coordinates.shape[1] == 1:
             return np.array([0]), None, None, coordinates
-        
+          
         coordinates = self.smoother.smooth(coordinates) # column-wise
-        
+
         # create independent copy
         tetherbot = deepcopy(tetherbot)
 
         # transform coordinates to joint space
         qs = self.to_jointspace(coordinates, tetherbot)
+
+        spline_t, spline_qs, spline_qsd1, spline_qsd2, exitflag = polysplinefit(
+            y = qs,
+            step = self.dt,
+            spline_dx = self.dt,
+            spline_limits = self.qlim,
+            spline_degree = 3,
+            iter_max = self.iter_max,
+            mode = 'segmental'
+        )
+
+        if exitflag == 0:
+            print('Warning, profiler reached max iteration count before valid solution was found')
+            print('duration in sec: ', spline_t[-1])
+            print('spline q max: ', np.round(np.max(np.abs(spline_qs), axis=1),4))
+            print('spline qd1 max: ', np.round(np.max(np.abs(spline_qsd1), axis=1),4))
+            print('spline qd2 max: ', np.round(np.max(np.abs(spline_qsd2), axis=1),4))
         
-        # calculate target time
-        if self.t_t is None:
-            t_t = np.sum(np.linalg.norm(np.diff(coordinates), axis=0))/self.v_t
-        else:
-            t_t = self.t_t
-
-        # calculate splines
-        exitflag = False
-
-        while not (t_t > self.t_t_max or exitflag == True):
-            splines = np.empty((qs.shape[0], int(t_t//self.dt+1))) # row-wise
-
-            for i in range(qs.shape[0]):
-                t, splines[i, :], _, _, exitflag = polysplinefit(y = qs[i,:], 
-                                                                 distance = t_t/(qs.shape[1]-1), 
-                                                                 resolution = self.dt, 
-                                                                 limits = self.qlim[np.clip(i, 0, len(self.qlim)-1)],
-                                                                 degree = 5)
-                exitflag = True
-                # retry with longer t_t if limits are not met
-                if exitflag == False:
-                    t_t = t_t + 20
-                    break
+        # debug code
+        """ print(exitflag)
+        print('target time in sec: ' ,t_t)
+        print('spline dt in sec: ', self.dt)
+        print('end time in sec: ', spline_t[-1])
+        print('spline qsmax0: ', np.max(np.abs(spline_qs[0,:])))
+        print('spline qsmax1: ', np.max(np.abs(spline_qs[1,:])))
+        print('spline qsmax2: ', np.max(np.abs(spline_qs[2,:])))
+        print('spline d1max0: ', np.max(np.abs(d1[0,:])))
+        print('spline d1max1: ', np.max(np.abs(d1[1,:])))
+        print('spline d1max2: ', np.max(np.abs(d1[2,:])))
+        print('spline d2max0: ', np.max(np.abs(d2[0,:])))
+        print('spline d2max1: ', np.max(np.abs(d2[1,:])))
+        print('spline d2max2: ', np.max(np.abs(d2[2,:])))
+        fig, ax = plt.subplots()
+        ax.plot(np.linspace(0, spline_t[-1], qs.shape[1]), qs[0,:])
+        ax.plot(np.linspace(0, spline_t[-1], qs.shape[1]), qs[1,:])
+        ax.plot(np.linspace(0, spline_t[-1], qs.shape[1]), qs[2,:])
+        fig, ax = plt.subplots()
+        ax.plot(spline_t, spline_qs[0,:])
+        ax.plot(spline_t, spline_qs[1,:])
+        ax.plot(spline_t, spline_qs[2,:])
+        fig, ax = plt.subplots()
+        ax.plot(spline_t, d1[0,:])
+        ax.plot(spline_t, d1[1,:])
+        ax.plot(spline_t, d1[2,:])
+        fig, ax = plt.subplots()
+        ax.plot(spline_t, d2[0,:])
+        ax.plot(spline_t, d2[1,:])
+        ax.plot(spline_t, d2[2,:])
+        print(np.round(spline_qs[1,0:10],4))
+        print(np.round(d1[1,0:10],4))
+        print(np.round(spline_t[0:10],4)) 
+        plt.show()
+        plt.close() """
 
         # transform jointspace to coordinates
-        c = self.to_coordinatespace(splines, tetherbot)
+        c = self.to_coordinatespace(spline_qs, tetherbot)
 
-        v = np.zeros(c.shape)
-        a = np.zeros(c.shape)
-
-        if c.shape[1]>2:
-            v[:,1:-1] = (c[:,2:] - c[:,:-2]) / (2 * t[1:-1])
-            a[:,1:-1] = (v[:,2:] - v[:,:-2]) / (2 * t[1:-1])
-        
+        t = spline_t
+        v = np.gradient(c, t, axis=1)
+        a = np.gradient(v, t, axis=1)
+       
         return t, a, v, c
 
     def to_jointspace(self, coordinates: np.ndarray, tetherbot: TbTetherbot) -> np.ndarray:

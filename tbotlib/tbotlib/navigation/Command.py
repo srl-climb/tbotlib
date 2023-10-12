@@ -52,8 +52,8 @@ class CommandMovePlatform(Command):
                                      'y = ' + str(round(self._targetposes[-1].y,3)) + ', ' +
                                      'z = ' + str(round(self._targetposes[-1].z,3)) + ', ' +
                                      'theta_x = ' + str(round(self._targetposes[-1].theta_x,2)) + ', ' +
-                                     'theta_y = ' + str(round(self._targetposes[-1].tetha_y,2)) + ', ' +
-                                     'theta_z = ' + str(round(self._targetposes[-1].tetha_z,2)))
+                                     'theta_y = ' + str(round(self._targetposes[-1].theta_y,2)) + ', ' +
+                                     'theta_z = ' + str(round(self._targetposes[-1].theta_z,2)))
 
     def reset(self) -> None:
         
