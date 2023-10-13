@@ -264,8 +264,6 @@ class TbTetherbot(TbObject):
             self._tensioned[i] = self._tethers[i].tensioned
 
     def pick(self, grip_idx: int, correct_pose: bool = False) -> None:
-      
-        #self.tension(grip_idx, False)   
 
         if correct_pose:    
             self.grippers[grip_idx].T_local = TransformMatrix(self.grippers[grip_idx].dockpoint.T_local.Tinv)
@@ -277,8 +275,6 @@ class TbTetherbot(TbObject):
 
 
     def place(self, grip_idx: int, hold_idx: int, correct_pose: bool = False) -> None:
-
-        #self.tension(grip_idx, True)
 
         if correct_pose:
             self.grippers[grip_idx].T_local = TransformMatrix(self.wall.holds[hold_idx].grippoint.T_local.T @  self.grippers[grip_idx].grippoint.T_local.Tinv)

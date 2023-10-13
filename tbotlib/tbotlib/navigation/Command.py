@@ -101,13 +101,12 @@ class CommandPickGripper(Command):
     def do(self, tetherbot: TbTetherbot, **_) -> bool:
 
         tetherbot.pick(self._grip_idx)
-        tetherbot.tension(self._grip_idx, False)
 
         return True
 
     def print(self) -> None:
 
-        print('Pick gripper: gripper_idx = ' + str(self._grip_idx))
+        print('Pick gripper: grip_idx = ' + str(self._grip_idx))
 
 
 class CommandPlaceGripper(Command):
@@ -120,13 +119,30 @@ class CommandPlaceGripper(Command):
     def do(self, tetherbot: TbTetherbot, **_) -> bool:
 
         tetherbot.place(grip_idx = self._grip_idx, hold_idx = self._hold_idx, correct_pose = False)
-        tetherbot.tension(self._grip_idx, True)
 
         return True
 
     def print(self) -> None:
 
-        print('Place gripper: gripper_idx = ' + str(self._grip_idx) + ' to: hold_idx = ' + str(self._hold_idx))
+        print('Place gripper: grip_idx = ' + str(self._grip_idx) + ' to: hold_idx = ' + str(self._hold_idx))
+
+
+class CommandTensionTethers(Command):
+
+    def __init__(self, grip_idx: int = None, value: bool = True) -> None:
+
+        self._grip_idx = grip_idx
+        self._value = value
+
+    def do (self, tetherbot: TbTetherbot, **_) -> bool:
+
+        tetherbot.tension(self._grip_idx, self._value)
+
+        return True
+
+    def print(self) -> None:
+
+        print('Tention tether of: grip_idx = ' + str(self._grip_idx) + ' with: value = ' + str(self._value))
 
 
 class CommandIdle(Command):

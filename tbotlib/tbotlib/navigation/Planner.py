@@ -215,9 +215,6 @@ class PlanPickAndPlace(AbstractPlanner):
         
         if exitflag is None: return tetherbot, commands, False
 
-        # untension the tethers of the gripper
-        tetherbot.tension(grip_idx, False)
-        
         # move platform close to gripper
         tetherbot, commands, exitflag = self._platform2gripper.plan(tetherbot, grip_idx, commands)
         
@@ -227,6 +224,12 @@ class PlanPickAndPlace(AbstractPlanner):
         tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
 
         if exitflag is None: return tetherbot, commands, False
+
+        # untension the tethers of the gripper
+        tetherbot.tension(grip_idx, False)
+
+        if commands is not None:
+            commands.append(CommandTensionTethers(grip_idx, False))
 
         # move arm to gripper dockpoint
         tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].dockpoint.T_world, commands)
@@ -269,11 +272,16 @@ class PlanPickAndPlace(AbstractPlanner):
         if commands is not None:
             commands.append(CommandPlaceGripper(grip_idx, hold_idx))
 
+        # move arm to gripper hoverpoint
+        tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
+
+        if exitflag is None: return tetherbot, commands, False
+
         # tension the tethers of the gripper
         tetherbot.tension(grip_idx, True)
 
-        # move arm to gripper hoverpoint
-        tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
+        if commands is not None:
+            commands.append(CommandTensionTethers(grip_idx, True))
 
         return tetherbot, commands, True
 
@@ -304,8 +312,6 @@ class PlanPickAndPlace2(PlanPickAndPlace):
                 tetherbot, commands, exitflag = self._platform2configuration.plan(tetherbot, grip_idx, commands)
                 next_state = 1
             elif current_state == 1:
-                # untension the tethers of the gripper
-                tetherbot.tension(grip_idx, False)
                 # move platform close to gripper
                 tetherbot, commands, exitflag = self._platform2gripper.plan(tetherbot, grip_idx, commands)
                 next_state = 2
@@ -316,6 +322,10 @@ class PlanPickAndPlace2(PlanPickAndPlace):
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
                 next_state = 3
             elif current_state == 3:
+                # untension the tethers of the gripper
+                tetherbot.tension(grip_idx, False)
+                if commands is not None:
+                    commands.append(CommandTensionTethers(grip_idx, False))
                 # move arm to gripper dockpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].dockpoint.T_world, commands)
                 next_state = 4
@@ -354,10 +364,12 @@ class PlanPickAndPlace2(PlanPickAndPlace):
                     commands.append(CommandPlaceGripper(grip_idx, hold_idx))
                 next_state = 10
             elif current_state == 10:
-                # tension the tethers of the gripper
-                tetherbot.tension(grip_idx, True)
                 # move arm to gripper hoverpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
+                # tension the tethers of the gripper
+                tetherbot.tension(grip_idx, True)
+                if commands is not None:
+                    commands.append(CommandTensionTethers(grip_idx, True))
                 next_state = 0
 
             if exitflag is None: 
