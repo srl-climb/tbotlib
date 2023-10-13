@@ -84,7 +84,9 @@ class TetherbotVisualizer:
                 if not self._opened:
                     break
 
+    def close(self) -> None:
 
+        self._vi.close()
 
 
 
