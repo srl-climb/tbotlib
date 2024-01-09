@@ -293,7 +293,7 @@ class TbTetherbot(TbObject):
         
         if points is None:
             points = self.C_world
-
+        
         # base of the plane to filter the holds
         base = basefit(self.A_world, axis=0, output_format=1)
         # ez is perpendicular to plane

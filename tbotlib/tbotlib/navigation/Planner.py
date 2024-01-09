@@ -397,6 +397,8 @@ class FastPlanPickAndPlace(AbstractPlanner):
 
     def plan(self, tetherbot: TbTetherbot, grip_idx: int, hold_idx: int) -> tuple[TbTetherbot, None, bool]:
         
+        print([gripper.parent.name for gripper in tetherbot.grippers], tetherbot.grippers[grip_idx].name, tetherbot.wall.holds[hold_idx].name)
+        
         # move platform into stable position
         tetherbot, _, exitflag = self._platform2configuration.plan(tetherbot, grip_idx)
         
