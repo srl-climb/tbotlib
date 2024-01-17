@@ -456,7 +456,7 @@ class TbArmPoseGraph(GridGraph):
         # reachable with arm?
         qs = self._tetherbot.platform.arm.ivk(TransformMatrix(u))
         reachable = self._tetherbot.platform.arm.valid(qs)
-
+        
         # collision with tether?
         if reachable:
             self._tetherbot.platform.arm.qs = qs

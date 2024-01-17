@@ -301,8 +301,6 @@ class PlanPickAndPlace2(PlanPickAndPlace):
         # 9:  place gripper
         # 10: move arm to gripper hoverpoint
 
-        print('Plan pick and place of Gripper (' + str(grip_idx) + ') to Hold (' + str(hold_idx) + ')')
-
         next_state = start_state
         while True:
             current_state = next_state
@@ -397,8 +395,6 @@ class FastPlanPickAndPlace(AbstractPlanner):
 
     def plan(self, tetherbot: TbTetherbot, grip_idx: int, hold_idx: int) -> tuple[TbTetherbot, None, bool]:
         
-        print([gripper.parent.name for gripper in tetherbot.grippers], tetherbot.grippers[grip_idx].name, tetherbot.wall.holds[hold_idx].name)
-        
         # move platform into stable position
         tetherbot, _, exitflag = self._platform2configuration.plan(tetherbot, grip_idx)
         
@@ -460,8 +456,9 @@ class GlobalPlanner(AbstractPlanner):
         if commands is not None and exitflag:
 
             for grip_idx, hold_idx in zip(path.grip_idc, path.hold_idc):
+                print('starting')
                 tetherbot, commands, exitflag = self._localplanner.plan(tetherbot, grip_idx, hold_idx, commands)
-    
+                print('exitflag')
                 if exitflag == False:
                     break
 
