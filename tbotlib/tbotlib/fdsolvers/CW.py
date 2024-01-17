@@ -90,7 +90,12 @@ class QuickHull(Base):
 
         # calculate stability
         s = (W_T@W_F[:-1,:]-W_F[-1,:]) #/ np.linalg.norm(W_F[:-1,:], axis=0) not necessary
-        s = np.min(s)
+        
+        if s.size == 0:
+            print('Warning: zero size stability array')
+            s = -1
+        else:
+            s = np.min(s)
        
         return s/1, s>=0
 
@@ -162,7 +167,12 @@ class HyperPlaneShifting(Base):
         
         # calculate stability
         s = (W_T@W_F[:-1,:]-W_F[-1,:]) #/ np.linalg.norm(W_F[:-1,:], axis=0) not necessary
-        s = np.min(s)
+
+        if s.size == 0:
+            print('Warning: zero size stability array')
+            s = -1
+        else:
+            s = np.min(s)
         
         return s/1, s>=0
 
