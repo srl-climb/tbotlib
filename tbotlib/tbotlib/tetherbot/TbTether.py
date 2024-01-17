@@ -38,6 +38,11 @@ class TbTether(TbPart):
             return self._f_min
         else:
             return 0
+        
+    @f_min.setter
+    def f_min(self, value: float) -> None:
+    
+        self._f_min = value
 
     @property
     def f_max(self) -> float:
@@ -46,6 +51,11 @@ class TbTether(TbPart):
             return self._f_max
         else:
             return 0
+        
+    @f_max.setter
+    def f_max(self, value: float) -> None:
+    
+        self._f_max = value
 
     @property
     def anchorpoints(self) -> list[TbAnchorPoint]:
