@@ -93,7 +93,7 @@ class TbPlatform(TbPart):
                       [-0.2,-0.15,-0.05],
                       [ 0.2,-0.15, 0.05],
                       [ 0.2,-0.15,-0.05]])
-
-        geometries = [TbAlphashape(points=B, alpha=1), TbCylinder(radius=0.05, height=0.02, T_local=[0,0,0.06])]
+        
+        geometries = [TbAlphashape(points=B, alpha=0.01), TbCylinder(radius=0.05, height=0.02, T_local=[0,0,0.06])]
     
         return TbPlatform.create(B, arm, geometries, T_local = [0,0,2.15])
