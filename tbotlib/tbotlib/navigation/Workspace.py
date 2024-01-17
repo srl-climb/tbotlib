@@ -136,9 +136,9 @@ class TbWorkspace(Workspace):
         
         self._bounds[:3,0] = median - variance
         self._bounds[:3,1] = median + variance
-          
+
         # Rotation bounds
-        median   = self._tetherbot.platform.T_world.decompose()[3:]
+        median   = 0 #self._tetherbot.platform.T_world.decompose()[3:]
         variance = np.clip(np.ones(3) * 180 + self._padding[None,3:], a_min=0, a_max=180)
 
         self._bounds[3:,0] = median - variance
@@ -148,10 +148,10 @@ class TbWorkspace(Workspace):
             T._T[2,-1] = self._tetherbot.platform.T_world.r[2]
             self._bounds[2,0] = 0
             self._bounds[2,1] = 0
-            self._bounds[3,0] = self._tetherbot.platform.T_world.decompose()[3]
-            self._bounds[3,1] = self._tetherbot.platform.T_world.decompose()[3]
-            self._bounds[4,0] = self._tetherbot.platform.T_world.decompose()[4]
-            self._bounds[4,1] = self._tetherbot.platform.T_world.decompose()[4]
+            self._bounds[3,0] = 0 #self._tetherbot.platform.T_world.decompose()[3]
+            self._bounds[3,1] = 0 #self._tetherbot.platform.T_world.decompose()[3]
+            self._bounds[4,0] = 0 #self._tetherbot.platform.T_world.decompose()[4]
+            self._bounds[4,1] = 0 #self._tetherbot.platform.T_world.decompose()[4]
 
         return super().calculate(T)
 
