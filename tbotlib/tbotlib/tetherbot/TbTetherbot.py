@@ -249,9 +249,10 @@ class TbTetherbot(TbObject):
         if self._tether_collision_margin < 0:
             return False
 
-        for tether in self._tethers:
-            if lineseg_distance(self.platform.arm.links[-1].r_world, tether.anchorpoints[0].r_world, tether.anchorpoints[1].r_world) < self._tether_collision_margin:
-                return True
+        for tether, tensioned in zip(self._tethers, self._tensioned):
+            if tensioned:
+                if lineseg_distance(self.platform.arm.links[-1].r_world, tether.anchorpoints[0].r_world, tether.anchorpoints[1].r_world) < self._tether_collision_margin:
+                    return True
         
         return False
 

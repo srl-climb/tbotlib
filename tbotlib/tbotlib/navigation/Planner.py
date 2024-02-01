@@ -1,6 +1,7 @@
 from __future__     import annotations
 from ..matrices     import TransformMatrix
 from ..tetherbot    import TbTetherbot
+from ..tools        import tic, toc
 from .Workspace     import *
 from .Graph         import *
 from .Command       import *
@@ -35,6 +36,7 @@ class LocalPlanner(AbstractPlanner):
         exitflag = profile is not None
 
         return tetherbot, profile, exitflag
+
 
 class PlanPlatform2Pose(LocalPlanner):
 
@@ -174,7 +176,7 @@ class PlanArm2Pose(LocalPlanner):
         super().__init__(graph, profiler, **kwargs)
 
     def plan(self, tetherbot: TbTetherbot, pose: TransformMatrix, commands: CommandList = None) -> Tuple[TbTetherbot, CommandList, Profile]:
-        
+       
         tetherbot, profile, exitflag = super().plan(tetherbot, pose.decompose())
 
         if commands is not None and exitflag:
@@ -230,7 +232,7 @@ class PlanPickAndPlace(AbstractPlanner):
 
         if commands is not None:
             commands.append(CommandTensionTethers(grip_idx, False))
-
+        
         # move arm to gripper dockpoint
         tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].dockpoint.T_world, commands)
 
@@ -452,15 +454,22 @@ class GlobalPlanner(AbstractPlanner):
         else:
             print('...failed.')
             exitflag = False
-
+        exitflag=False ###########################################################
         if commands is not None and exitflag:
 
+            print('local path planning...')
+
             for grip_idx, hold_idx in zip(path.grip_idc, path.hold_idc):
-                print('starting')
+                
                 tetherbot, commands, exitflag = self._localplanner.plan(tetherbot, grip_idx, hold_idx, commands)
-                print('exitflag')
+                
                 if exitflag == False:
                     break
+        
+            if exitflag == True:
+                print('...successful!')
+            else:
+                print('...failed.')
 
         return tetherbot, commands, exitflag
 

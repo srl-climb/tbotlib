@@ -468,7 +468,10 @@ class TbArmPoseGraph(GridGraph):
 
         return self.get_heuristic(u) <= self._goal_dist
 
-    def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = np.zeros(3)) -> Path6:
+    def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = None) -> Path6:
+        
+        if goal is None:
+            goal = np.zeros(3)
         
         self._tetherbot = deepcopy(tetherbot)
         self._tetherbot._update_transforms()
