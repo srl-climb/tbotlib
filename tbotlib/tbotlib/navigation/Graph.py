@@ -14,7 +14,7 @@ import numpy.matlib as ml
 import networkx     as nx
 
 if TYPE_CHECKING:
-    from .Planner   import FastPlanPickAndPlace
+    from .Planner   import FastPlanPickAndPlace, PlanPlatform2Hold, PlanPlatform2Gripper
 
 class SearchGraph(ABC):
 
@@ -192,7 +192,7 @@ class SearchGraph(ABC):
                     camefrom[neighbour] = current
                     self.set_gscore(neighbour, gscore_tentative)
                     self.set_fscore(neighbour, gscore_tentative + self.get_heuristic(neighbour))
-
+    
                     heappush(open, (self.get_fscore(neighbour), neighbour))
         
         print(self.__class__.__name__, 'failed after', iter)
@@ -594,3 +594,144 @@ class TbGlobalGraph(SearchGraph):
         else:
             pass
         
+
+class TbGlobalGraph2(SearchGraph):
+
+    def __init__(self, goal_dist: float = 0, platform2gripper: PlanPlatform2Gripper = None, platform2hold: PlanPlatform2Hold = None, workspace: TbWorkspace = None, cost: float = 0.05, **kwargs) -> None:
+        
+        self._goal_dist = goal_dist
+        self._platform2hold = platform2hold
+        self._platform2gripper = platform2gripper
+        self._workspace = workspace
+        self._cost = cost
+        
+        super().__init__(**kwargs)
+
+    def get_neighbours(self, u: Tuple) -> List[Tuple]:
+
+        for grip_idx, hold_idx in zip(range(self._tetherbot.k), u):
+                if hold_idx == -1:
+                    self._tetherbot.pick(grip_idx, True)
+                else:
+                    self._tetherbot.place(grip_idx, hold_idx, True)
+
+        return super().get_neighbours(u)
+
+    def _get_potential_neighbours(self, u: Tuple) -> List[Tuple]:
+
+        # k-1 stance
+        neighbours = []
+        if -1 in u:
+            grip_idx = u.index(-1)
+            for hold_idx in self._tetherbot.filter_holds(grip_idx, self._C):
+                neighbour = list(u)
+                neighbour[grip_idx] = hold_idx
+                if len(neighbour) == len(set(neighbour)):
+                    neighbours.append(neighbour)
+            print()
+            print(u)
+            print(neighbours)
+        # k stance
+        else:
+            for grip_idx in range(len(u)):
+                neighbour = list(u)
+                neighbour[grip_idx] = -1
+                neighbours.append(neighbour)
+
+        return list(map(tuple, neighbours))
+    
+    def _calc_heuristic(self, u: Tuple) -> float:
+
+        if -1 in u:
+            u = list(u)
+            goal = list(self._goal)
+            i = u.index(-1)
+            u.pop(i)
+            goal.pop(i)
+        else:
+            goal = self._goal
+        
+        #return np.linalg.norm(np.mean(self._C[:,u],axis=1) - np.mean(self._C[:,goal],axis=1))
+        return np.sum(np.linalg.norm(self._C[:,u] - self._C[:,goal],axis=0)) / len(goal)
+
+    def _calc_cost(self, u: Tuple, v: Tuple) -> float:
+
+        return self._cost
+    
+    def _calc_reachable(self, u: Tuple) -> bool:
+        # Note: Using u to place grippers not necessary as it was already done by get_neighbours
+        
+        # k-1 stance
+        if -1 in u:
+            grip_idx = u.index(-1)
+            self._tetherbot.tension(grip_idx, False)
+            reachable, self._reachable_pose = self._workspace.calculate(self._tetherbot)
+            self._tetherbot.tension(grip_idx, True)
+        # k stance
+        else:
+            reachable, self._reachable_pose = self._workspace.calculate(self._tetherbot)
+        # Note: Reachable pose will be added by add_node
+
+        return reachable > 0
+    
+    def add_node(self, u: Tuple) -> None:
+        
+        super().add_node(u)
+
+        self.set_reachable_pose(u, self._reachable_pose)
+    
+    def _calc_traversable(self, u: Tuple, v: Tuple) -> bool:
+        # Note: Using u to place grippers not necessary as it was already done by get_neighbours
+
+        # k-1 stance
+        if -1 in u:
+            # place
+            grip_idx = u.index(-1)
+            hold_idx = v[grip_idx]
+            self._tetherbot.platform.T_world = TransformMatrix(self.get_reachable_pose(u))
+            self._tetherbot.tension(grip_idx, False)
+            traversable = self._platform2hold.plan(self._tetherbot, hold_idx)[0]
+            self._tetherbot.tension(grip_idx, True)
+        # k stance
+        elif -1 in v:      
+            # grip
+            grip_idx = v.index(-1)
+            self._tetherbot.platform.T_world = TransformMatrix(self.get_reachable_pose(u))
+            traversable = self._platform2gripper.plan(self._tetherbot, grip_idx)[0]
+
+        return traversable is not None
+    
+    def set_reachable_pose(self, u: Tuple, value: np.ndarray) -> None:
+
+        self._graph.nodes[u]['reachable_pose'] = value
+
+    def get_reachable_pose(self, u: Tuple) -> np.ndarray:
+
+        return self._graph.nodes[u]['reachable_pose']
+    
+    def is_goal(self, u: Tuple) -> bool:
+
+        if -1 in u:
+            return False
+        else:
+            return self.get_heuristic(u) <= self._goal_dist
+
+    def search(self, tetherbot: TbTetherbot, start: Tuple, goal: Tuple) -> ClimbPath: 
+        
+        self._tetherbot = deepcopy(tetherbot)
+        self._k         = self._tetherbot.k
+        self._C         = self._tetherbot.C_world
+        self._u         = np.empty(self._k)
+        self._v         = np.empty(self._k)
+
+        self._tetherbot.remove_all_geometries()
+        self._tetherbot.toggle_fast_mode(True)
+        
+        data = super().search(start, goal)
+
+        if data is not None: 
+            # remove transitions
+            data = [d for d in data if -1 not in d]
+            return ClimbPath(data)
+        else:
+            pass
