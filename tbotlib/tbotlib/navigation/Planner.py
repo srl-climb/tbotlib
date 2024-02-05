@@ -454,7 +454,7 @@ class GlobalPlanner(AbstractPlanner):
         else:
             print('...failed.')
             exitflag = False
-        exitflag=False ###########################################################
+
         if commands is not None and exitflag:
 
             print('local path planning...')
