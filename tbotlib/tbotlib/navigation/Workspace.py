@@ -50,7 +50,7 @@ class Workspace():
             for idx in range(len(self._grid)):
                 val, coordinate = self._eval(idx)
                 
-                if val >= 0:
+                if val > 0:
                     return val, coordinate
 
             return -1, None  
