@@ -1,8 +1,9 @@
 from __future__     import annotations
+from ..matrices     import TransformMatrix
 from .TbArm         import TbArm, TbRPPArm
 from .TbPart        import TbPart
 from .TbPoint       import TbAnchorPoint, TbCamera, TbDepthsensor
-from .TbGeometry    import TbAlphashape, TbCylinder, TbGeometry
+from .TbGeometry    import TbAlphashape, TbCylinder, TbGeometry, TbBox
 from typing         import Type, Union
 import numpy as np
 
@@ -95,5 +96,6 @@ class TbPlatform(TbPart):
                       [ 0.2,-0.15,-0.05]])
         
         geometries = [TbAlphashape(points=B, alpha=0.01), TbCylinder(radius=0.05, height=0.02, T_local=[0,0,0.06])]
-    
+        geometries = [TbCylinder(radius=0.05, height=0.02, T_local=[0,0,0.06]), TbBox([0.4,0.3,0.1], T_local = TransformMatrix([-0.2,-0.15,-0.05]))]
+
         return TbPlatform.create(B, arm, geometries, T_local = [0,0,2.15])

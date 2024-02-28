@@ -1,8 +1,8 @@
 from __future__ import annotations
 import numpy as np
-from typing import Iterable, Union
+from typing import Iterable, Union, Generator
 
-def ndrange(start: Union[Iterable, np.ndarray], stop: Union[Iterable, np.ndarray], step: Union[Iterable, np.ndarray]) -> np.ndarray:
+def ndrange(start: Union[Iterable, np.ndarray], stop: Union[Iterable, np.ndarray], step: Union[Iterable, np.ndarray]) -> Generator[np.ndarray]:
 
     start = np.array(start)
     stop = np.array(stop)
@@ -17,9 +17,8 @@ def ndrange(start: Union[Iterable, np.ndarray], stop: Union[Iterable, np.ndarray
 
     num = (stop - start)//step+1
     base = np.cumprod(num)//num
-    print(base)
-    print(float(np.prod(num, dtype=np.int64)))
-    print('shi')
+    
+    print(np.prod(num, dtype=np.int64))
     for i in range(np.prod(num, dtype=np.int64)):
 
         result = start + (i // base % num) * step
@@ -31,15 +30,15 @@ def ndrange(start: Union[Iterable, np.ndarray], stop: Union[Iterable, np.ndarray
 
 if __name__ == '__main__':
 
-    start = [[0,0],[0,0],[0,0],[0,0],[0,0]]
-    stop = [[1,1],[1,1],[1,1],[1,1],[1,1]]
-    step = [[0.2,0.2],[0.2,0.2],[0.2,0.2],[0.2,0.2],[0.2,0.2]]
+    start = [[0,0],[0,0]]
+    stop = [[1,1],[1,1]]
+    step = [[1,1],[1,1]]
 
     counter = 0
     for i in ndrange(start, stop, step):
         print(i)
         
-        if counter == 3:
+        if counter == 30:
             break
         counter += 1
 

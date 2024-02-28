@@ -204,10 +204,20 @@ class TbTetherbot(TbObject):
 
         return self._l_min
     
+    @l_min.setter
+    def l_min(self, value: float) -> None:
+
+        self._l_min = value
+    
     @property
     def l_max(self) -> float:
 
         return self._l_max
+    
+    @l_max.setter
+    def l_max(self, value: float) -> None:
+
+        self._l_max = value
 
     def forces(self, w: np.ndarray = None) -> tuple[np.ndarray, int]:
 
