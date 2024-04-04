@@ -62,7 +62,7 @@ class TbGeometry(TbObject):
         return self._com
 
     @com.setter
-    def com(self, value: TbPoint()) -> None:
+    def com(self, value: TbPoint) -> None:
 
         self._com = value
 
