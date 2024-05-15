@@ -238,7 +238,7 @@ class TbTetherbot(TbObject):
         
         return np.linalg.norm(np.sum(F, axis=2), axis=1), exitflag
 
-    def stability(self, W: np.ndarray = None, ignore_tether_lengths: bool = False) -> Tuple(bool, float):
+    def stability(self, W: np.ndarray = None, ignore_tether_lengths: bool = False) -> Tuple[bool, float]:
 
         if W is None:
             W = self.W
@@ -308,7 +308,7 @@ class TbTetherbot(TbObject):
         # base of the plane to filter the holds
         base = basefit(self.A_world, axis=0, output_format=1)
         # ez is perpendicular to plane
-
+        
         # index of the gripper within the order
         order_idx = self._aorder.index(grip_idx)
 
@@ -467,7 +467,18 @@ class TbTetherbot(TbObject):
         return TbTetherbot(platform=platform, grippers=grippers, tethers=tethers, wall=wall, W=W, mapping=mapping, aorder=aorder)
 
 
-""" # place grippers onto wall
-        for gripper, hold in zip(self._grippers, self._wall.holds):
-            gripper.parent  = hold
-            gripper.T_local = gripper.T_local.set_r(gripper.grippoint.r_local) """
+""" 
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(1,1)
+        ax.set_aspect('equal', 'box')
+        ax.scatter(*points.T)
+        
+        for i in filter.nonzero()[0]:
+            ax.scatter(*points[i,:], c='green')
+
+        ax.scatter(*right_1, c='red')
+        ax.scatter(*right_2, c='red')
+        ax.scatter(*left_1, c='red')
+        ax.scatter(*left_2, c='red')
+
+        plt.show() """
