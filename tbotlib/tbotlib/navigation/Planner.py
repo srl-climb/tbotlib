@@ -310,6 +310,10 @@ class PlanPickAndPlace2(PlanPickAndPlace):
             if current_state == 0:
                 # move platform into stable position
                 tetherbot, commands, exitflag = self._platform2configuration.plan(tetherbot, grip_idx, commands)
+                # untension the tethers of the gripper
+                tetherbot.tension(grip_idx, False)
+                if commands is not None:
+                    commands.append(CommandTensionTethers(grip_idx, False))
                 next_state = 1
             elif current_state == 1:
                 # move platform close to gripper
@@ -322,10 +326,6 @@ class PlanPickAndPlace2(PlanPickAndPlace):
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
                 next_state = 3
             elif current_state == 3:
-                # untension the tethers of the gripper
-                tetherbot.tension(grip_idx, False)
-                if commands is not None:
-                    commands.append(CommandTensionTethers(grip_idx, False))
                 # move arm to gripper dockpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].dockpoint.T_world, commands)
                 next_state = 4
@@ -460,7 +460,7 @@ class GlobalPlanner(AbstractPlanner):
             print('local path planning...')
 
             for grip_idx, hold_idx in zip(path.grip_idc, path.hold_idc):
-                
+                print('gripper ', grip_idx, ' to hold ', hold_idx)
                 tetherbot, commands, exitflag = self._localplanner.plan(tetherbot, grip_idx, hold_idx, commands)
                 
                 if exitflag == False:
