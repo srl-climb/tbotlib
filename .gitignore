@@ -7,3 +7,4 @@ tbotlib/tbotlib/*/__pycache__/
 *.pyc
 *.pyc
 tbotlib/tbotlib/tetherbot/__pycache__/TbGeometry.cpython-38.pyc
+*.pyc
