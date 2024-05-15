@@ -21,6 +21,7 @@ from .perp                          import perp
 from .uniqueonly                    import uniqueonly
 from .io                            import isave, iload
 from .insideout                     import insideout
-from .gridgenerators                import circulargrid, meshgrid
+from .gridgenerators                import circulargrid, meshgrid, cylindricalgrid
 from .splinefit                     import polysplinefit
 from .lineseg_distance              import lineseg_distance
+from .ArangeDict                    import ArangeDict
