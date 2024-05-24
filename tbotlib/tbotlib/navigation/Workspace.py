@@ -1,8 +1,7 @@
 from __future__  import annotations
-from ..matrices  import NdTransformMatrix
+from ..matrices  import NdTransformMatrix, TransformMatrix
 from ..tetherbot import TbTetherbot
-from ..plot      import TbTetherbotplot
-from ..tools     import basefit, insideout
+from ..tools     import tbbasefit, insideout
 from copy        import deepcopy
 from typing      import Tuple
 import matplotlib.pyplot as plt
@@ -10,7 +9,7 @@ import numpy             as np
 
 class Workspace():
 
-    def __init__(self, bounds: np.ndarray, scale: np.ndarray, mode: str = None) -> None:
+    def __init__(self, bounds: np.ndarray, scale: np.ndarray, mode: str = 'first', threshold: float = 0) -> None:
 
         self._bounds = np.array(bounds)
         self._scale  = np.array(scale)
@@ -18,6 +17,11 @@ class Workspace():
         self._grid   = None
         self._vals   = None
         self._mode   = mode
+
+        if mode == 'first':
+            self._threshold = threshold
+        else:
+            self._threshold = None
 
     @property
     def mode(self) -> str:
@@ -50,7 +54,7 @@ class Workspace():
             for idx in range(len(self._grid)):
                 val, coordinate = self._eval(idx)
                 
-                if val > 0:
+                if val > self._threshold:
                     return val, coordinate
 
             return -1, None  
@@ -74,15 +78,16 @@ class Workspace():
             #       since a stable pose is much more likely to be found in the center instead of
             #       the edge of the grid.
             #       coordinates.append(np.linspace(bound[0], bound[1], num, endpoint=True))
-
+    
         # generate grid
         coordinates.reverse()
+        
         self._grid = np.flip(np.array(np.meshgrid(*coordinates, indexing='xy')).T.reshape(-1, self._ndim), axis=1)
         # Note: Reversing and flipping will sort the grid coordinates in a way, that all rotations
         #       for a given position will be evaluated first before moving to the next position. This
         #       will improve performance, when looking for the first stable pose in the workspace
         #       self._grid = np.array(np.meshgrid(*coordinates)).T.reshape(-1, self._ndim)
-
+        
         # generate value array
         self._vals = np.zeros(len(self._grid))-1
 
@@ -118,12 +123,28 @@ class TbWorkspace(Workspace):
     def calculate(self, tetherbot: TbTetherbot) -> Tuple[float, np.ndarray]:
         
         self._tetherbot = deepcopy(tetherbot)
+        self._tetherbot._update_transforms()
+        
+        # first guess
+        T = tbbasefit(self._tetherbot, output_format = 1)
+        # improve ex/ey pointing
+        n = 8
+        l_min = float('inf')
+        R_min = np.zeros((3,3))
+        for i in range(n):
+            self._tetherbot.platform.T_local = T.rotate(0,0,(i/n)*360)
+            # total tether length
+            l = sum(self._tetherbot.l[self._tetherbot.tensioned])
+            if l < l_min:
+                R_min[:] = T.R[:]
+                l_min = l
+        T = TransformMatrix(T.r, R_min)
 
-        # Transformation of the workspace grid
+        # transformation of the workspace grid
         R = np.eye(6)
         r = np.zeros(6)
-        r[:3], R[:3,:3] = basefit(self._tetherbot.A_world, axis=0)
-        r[3:]           = self._tetherbot.platform.T_world.decompose()[3:]
+        r        = T.decompose()
+        R[:3,:3] = T.R
 
         T = NdTransformMatrix(r, R)
 
@@ -133,7 +154,6 @@ class TbWorkspace(Workspace):
         
         median   = (np.max(A_grid, axis=1) + np.min(A_grid, axis=1))*0.5
         variance = np.clip((np.max(A_grid, axis=1) - np.min(A_grid, axis=1))*0.5 + self._padding[None,:3], a_min=0, a_max=np.inf)
-        
         self._bounds[:3,0] = median - variance
         self._bounds[:3,1] = median + variance
 
@@ -157,35 +177,21 @@ class TbWorkspace(Workspace):
 
     def _eval(self, idx: int) -> Tuple[float, np.ndarray]:
 
-        self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(self._grid[idx])
-
+        self._tetherbot.platform.T_world = TransformMatrix(self._grid[idx])
         self._vals[idx] = self._tetherbot.stability()[0]
 
         return self._vals[idx], self._grid[idx]
 
-    def debug_plot(self) -> None:
+    def debug_plot(self):
 
-        # Plot x, y, z
-        fig = plt.figure()
-        ax  = fig.add_subplot(projection='3d') 
-        xyz = np.unique(self._grid[:,:3], axis = 0)
+        ax = plt.figure().add_subplot(projection='3d')   
 
-        ax.scatter(xyz[:,0], xyz[:,1], xyz[:,2])
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
-
-        # Tetherbot
-        # TbTetherbotplot(self._tetherbot, ax=ax)
-
-        # Plot theta_x, y, z
-        fig = plt.figure()
-        ax  = fig.add_subplot(projection='3d') 
-        xyz = np.unique(self._grid[:,3:], axis = 0)
-
-        ax.scatter(xyz[:,0], xyz[:,1], xyz[:,2])
-        ax.set_xlabel('theta_x')
-        ax.set_ylabel('theta_y')
-        ax.set_zlabel('theta_z')
+        idx = self._vals > 0
+        ax.scatter(self._grid[:,0][idx], self._grid[:,1][idx], self._grid[:,2][idx], c='g', s=50)
+        ax.scatter(self._grid[:,0], self._grid[:,1], self._grid[:,2], s=2)
+        ax.scatter([8.98400e-01],[5.06900e-01],[-3.59000e-02], c='r', s=50)
+        ax.scatter([6.77536169e-01],[1.06441181e+00],[-2.91502785e-02], c='r', s=50)
+        print(self._grid.shape)
 
         plt.show()
+
