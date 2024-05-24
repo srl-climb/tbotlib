@@ -1,6 +1,6 @@
 from __future__      import annotations
-from ..fdsolvers     import QuadraticProgram, HyperPlaneShifting, CornerCheck, QuickHull, AdaptiveCWSolver
-from ..tools         import Ring, Mapping, hyperRectangle, basefit, inpie, inrectangle, perp, ang3, lineseg_distance
+from ..fdsolvers     import QuadraticProgram, AdaptiveCWSolver
+from ..tools         import Ring, Mapping, hyperRectangle, lineseg_distance, tbbasefit, is_convex2, min_brec_width
 from ..matrices      import StructureMatrix, TransformMatrix, rotM
 from ..visualization import TetherbotVisualizer
 from .TbObject       import TbObject
@@ -242,14 +242,18 @@ class TbTetherbot(TbObject):
 
         if W is None:
             W = self.W
-
+        
         if ignore_tether_lengths:
             inlimit = True
         else:
-            l = self.l
-            inlimit = all(self._l_min < l) and all(l < self._l_max) 
-
+            inlimit = all(self._l_min < self.l) and all(self.l < self._l_max) 
+        
         if inlimit:
+            outsideplatform = all(np.linalg.norm(self.A_world-self.platform.r_world[:,None], axis=0)>0.26)
+        else:
+            return False, -np.inf
+        
+        if outsideplatform:
             return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
         else:
             return False, -np.inf
@@ -298,7 +302,12 @@ class TbTetherbot(TbObject):
     def place_all(self, hold_idc: list[int], correct_pose: bool = True) -> None:
 
         for grip_idx, hold_idx in zip(range(self._k), hold_idc):
-            self.place(grip_idx, hold_idx, correct_pose)
+            if hold_idx == -1:
+                self.tension(grip_idx, False)
+                self.pick(grip_idx, correct_pose)
+            else:
+                self.tension(grip_idx, True)
+                self.place(grip_idx, hold_idx, correct_pose)
 
     def filter_holds(self, grip_idx: int, points: np.ndarray = None) -> np.ndarray:
         
@@ -306,14 +315,13 @@ class TbTetherbot(TbObject):
             points = self.C_world
         
         # base of the plane to filter the holds
-        base = basefit(self.A_world, axis=0, output_format=1)
+        base = tbbasefit(self, output_format=1)
         # ez is perpendicular to plane
         
         # index of the gripper within the order
         order_idx = self._aorder.index(grip_idx)
 
         filter = np.full(points.shape[1], False)
-        radius = self.platform.arm.workspace_radius
 
         # project all points and gripper positions on to the plane
         points  = base.inverse_transform(points, axis=0, copy=True).T[:,:2] 
@@ -323,23 +331,20 @@ class TbTetherbot(TbObject):
         left_2  = base.inverse_transform(self.grippers[self._aorder[order_idx+2]].r_world)[:2]
         # Note: gripper positions should be anticlockwise
 
-        # check middle
-        filter = filter | inrectangle(right_1, right_1+perp(left_1-right_1)*radius, left_1+perp(left_1-right_1)*radius, left_1, points)
-        
-        # check to the right  
-        right_angle = ang3(left_1-right_1, right_2-right_1)
-        if right_angle < 90: # acute angle -> add points    
-            filter = filter | inpie(right_1, radius, right_1-right_2, perp(left_1-right_1),  points)
-        elif right_angle > 90: # obstuse angle -> remove points
-            filter = filter & np.logical_not(inpie(right_1, np.inf*radius, perp(left_1-right_1), right_1-right_2,  points, mode='ex'))
+        # initalize polygon
+        polygon = np.array((right_2, right_1, [0,0], left_1, left_2))
 
-        # check to the left
-        left_angle = ang3(right_1-left_1, left_2-left_1)
-        if left_angle < 90: # acute angle -> add points
-            filter = filter | inpie(left_1, radius, perp(left_1-right_1), left_1-left_2, points) 
-        elif left_angle > 90:
-            filter = filter & np.logical_not(inpie(left_1, np.inf*radius, left_1-left_2, perp(left_1-right_1), points, mode='ex')) 
-
+        for i in range(points.shape[0]):
+            # insert point into polygon
+            polygon[2,:] = points[i,:]
+            # check if point is within the arm reach
+            if lineseg_distance(polygon[2,:], polygon[1,:], polygon[3,:]) < self.platform.arm.workspace_radius:
+                # check if convex, filter out ill-conditioned polygons
+                if is_convex2(polygon, precision=6)[1] >= (self.k-1):
+                    # filter out additional ill-conditioned polygons
+                    if min_brec_width(polygon) > 0.51:
+                        filter[i] = True
+            
         return filter.nonzero()[0]
         
     def remove_all_geometries(self) -> None:
@@ -465,6 +470,37 @@ class TbTetherbot(TbObject):
             tether.add_geometry(TbTethergeometry(radius = 0.008))
 
         return TbTetherbot(platform=platform, grippers=grippers, tethers=tethers, wall=wall, W=W, mapping=mapping, aorder=aorder)
+        
+    def get_state(self) -> dict:
+
+        value = {}
+        value['platform_transform'] = self.platform.T_local.T.copy()
+        value['arm_link_qs'] = self.platform.arm.qs.copy()
+        value['gripper_parents'] = [gripper.parent for gripper in self.grippers]
+        value['gripper_transforms'] = [gripper.T_local.T.copy() for gripper in self.grippers]
+        value['tether_tentions'] = [tether.tensioned for tether in self.tethers]
+
+        return value
+    
+    def set_state(self, value: dict)  -> None:
+
+        self.platform.T_local._T[:] = value['platform_transform'][:]
+
+        for link, q in zip(self.platform.arm.links, value['arm_link_qs']):
+            link.q = q
+
+        for gripper, parent, T in zip(self.grippers, value['gripper_parents'],  value['gripper_transforms']):
+            gripper.parent = parent
+            gripper.T_local._T[:] = T[:]
+        
+        for tether, tensioned in zip(self.tethers, value['tether_tentions']):
+            tether.tensioned = tensioned
+
+        for i in range(self._m):
+            self._tensioned[i] = self._tethers[i].tensioned
+
+        self._update_transforms()
+
 
 
 """ 
