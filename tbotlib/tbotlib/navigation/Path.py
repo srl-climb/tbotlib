@@ -65,7 +65,7 @@ class Path6(Path):
 
         super().replace(coordinate, idx)
 
-        self._poses[idx]       = TransformMatrix(coordinate)
+        self._poses[idx] = TransformMatrix(coordinate)
 
         return self
 
@@ -90,26 +90,13 @@ class Path6(Path):
 
 class ClimbPath(Path):
 
-    def __init__(self, coordinates: list[tuple]) -> None:
+    def __init__(self, stances: list[tuple]) -> None:
         
-        super().__init__(coordinates)
-
-        self._grip_idc       = []
-        self._hold_idc       = []
-
-        for i in range(len(self._coordinates)-1):
-
-            self._grip_idc.append(np.where((self._coordinates[i+1] - self._coordinates[i]) != 0)[0][0])
-            self._hold_idc.append(self._coordinates[i+1][self._grip_idc[-1]])
+        super().__init__(stances)
 
     @property
-    def grip_idc(self) -> list[int]:
+    def stances(self) -> np.ndarray:
 
-        return self._grip_idc
-
-    @property
-    def hold_idc(self) -> list[int]:
-
-        return self._hold_idc
+        return self._coordinates
 
 
