@@ -14,7 +14,7 @@ class Base():
         self._n = n
         
 
-    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple(bool, float):
+    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple[bool, float]:
 
         exitflag = False
 
@@ -44,7 +44,7 @@ class CornerCheck(Base):
             self._fdsolver = fdsolver
 
 
-    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple(bool, float):
+    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
 
         W = np.atleast_2d(W)
 
@@ -69,7 +69,7 @@ class QuickHull(Base):
         self._q     = 2**self._m                    # number of vertices in the feasible force set
         self._F     = np.empty((self._m, self._q))  # feasible force set, vertice-representation
 
-    def eval(self, AT: np.ndarray, W_T: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple(bool, float):
+    def eval(self, AT: np.ndarray, W_T: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
         
         # calculate vertices of the feasible force set   
         for k in range(self._q):
@@ -126,7 +126,7 @@ class HyperPlaneShifting(Base):
         self._h2[::2]  = 1
         self._h2[1::2] = -1
 
-    def eval(self, AT: np.ndarray, W_T: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple(bool, float):
+    def eval(self, AT: np.ndarray, W_T: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
         
         # linear independent combinations of AT
         I_0 = self._I[np.sum(np.linalg.svd(AT.T[self._I,:], compute_uv=False) > 1e-10, axis=1) == self._n-1]
@@ -188,10 +188,8 @@ class AdaptiveCWSolver(Base):
         for i in range(self._m+1):
             self._solvers[i] = HyperPlaneShifting(i, self._n)
 
-    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple(bool, float):
+    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple[bool, float]:
         
         m = np.sum(tensioned)
 
         return self._solvers[m].eval(AT[:,tensioned], W, f_min[tensioned], f_max[tensioned])
-
-
