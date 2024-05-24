@@ -1,5 +1,5 @@
 from .ang3                          import ang3
-from .basefit                       import basefit
+from .basefit                       import basefit, tbbasefit
 from .between                       import between
 from .hyperRectangle                import hyperRectangle
 from .interleave                    import interleave
@@ -25,3 +25,5 @@ from .gridgenerators                import circulargrid, meshgrid, cylindricalgr
 from .splinefit                     import polysplinefit
 from .lineseg_distance              import lineseg_distance
 from .ArangeDict                    import ArangeDict
+from .is_convex2                    import is_convex2
+from .min_brec_width                import min_brec_width
