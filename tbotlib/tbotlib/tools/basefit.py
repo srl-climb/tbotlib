@@ -1,8 +1,11 @@
 from __future__ import annotations
-from ..matrices import TransformMatrix, NdTransformMatrix
+from ..matrices import TransformMatrix, NdTransformMatrix, rotM
 from .ang3      import ang3
-from typing     import Tuple
+from typing     import Tuple, TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..tetherbot import TbTetherbot
 
 def basefit(points: np.ndarray, axis: int = 0, output_format: int = 0) -> Tuple[np.ndarray, np.ndarray] | TransformMatrix | NdTransformMatrix:
 
@@ -50,7 +53,7 @@ def basefit(points: np.ndarray, axis: int = 0, output_format: int = 0) -> Tuple[
 
     # Two points were passed
     elif points.shape[1] == 2:
-
+        
         r = points[:,0]
 
         # first base vector
@@ -111,4 +114,60 @@ def basefit(points: np.ndarray, axis: int = 0, output_format: int = 0) -> Tuple[
 
         pass
 
+def tbbasefit(tbot: TbTetherbot, output_format: int = 0 ):
+    '''
+    Fit a coordinate system to a tetherbot
+    points: numpy array
+    output_format:  0:   Returns the support vector and basis (each column is a basis vector) of the coordinate system  
+                    1/2: Retruns transformation of the coordinate system
+    '''
 
+    # temporary transformation matrix
+    T_temp = basefit(tbot.A_world[:, tbot.tensioned], axis = 0, output_format = 1)
+    # basefit returns transformation based on a singular-value-decomposition, hence the axes might be flipped/mirrored
+
+    # flip z axis in the correct direction using one of the grippers z axes as a reference direction
+    if np.dot(T_temp.ez, tbot.grippers[0].T_world.ez) < 0:
+        T_temp._T[:3,2] *= -1
+
+    # flip y axis to ensure right handed system
+    if np.dot(np.cross(T_temp.ez, T_temp.ex), T_temp.ey) < 0:
+        T_temp._T[:3,1] *= -1
+
+    # find ex, ey where cable lengths are the shortest
+    l_min = np.inf
+    R_min = np.eye(3)
+
+    for i in range(4):
+        R = T_temp.R @ rotM(0, 0, 90*i, 'xyz')
+
+        # sum of all tether lengths
+        l = np.sum(np.linalg.norm(tbot.A_world[:, tbot.tensioned] - (T_temp.r[:, None] + R @ tbot.B_local[ :,tbot.tensioned]), axis=0))
+        
+        if l < l_min:
+            l_min = l
+            R_min[:] = R[:]    
+    T_temp._T[:3,:3] = R_min
+
+    return _format_output(T_temp.r, T_temp.R, output_format)
+
+
+def _format_output(r: np.ndarray, E: np.ndarray, output_format: int):
+
+    if output_format == 0:
+        
+        return r, E
+    
+    elif output_format == 1:
+
+        return TransformMatrix(r, E)
+
+    elif output_format == 2:
+
+        return NdTransformMatrix(r, E)
+    
+    else:
+
+        pass
+
+    return
