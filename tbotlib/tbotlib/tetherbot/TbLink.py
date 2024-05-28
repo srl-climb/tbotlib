@@ -74,7 +74,7 @@ class TbRevoluteLink(TbLink):
     @q.setter
     def q(self, value: float) -> None:
 
-        self._dhp.phi = between(value, self.qlim)[1]    
+        self._dhp.phi = value #between(value, self.qlim)[1]    
         self._update_transforms()
 
 
@@ -92,5 +92,5 @@ class TbPrismaticLink(TbLink):
     @q.setter
     def q(self, value: float) -> None:
 
-        self._dhp.d = between(value, self.qlim)[1]
+        self._dhp.d = value #between(value, self.qlim)[1]
         self._update_transforms()
