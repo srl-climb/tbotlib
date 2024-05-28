@@ -1,15 +1,16 @@
-from __future__  import annotations
-from ..matrices  import NdTransformMatrix, TransformMatrix
-from ..tetherbot import TbTetherbot
-from ..tools     import tbbasefit, insideout
-from copy        import deepcopy
-from typing      import Tuple
+from __future__     import annotations
+from ..matrices     import NdTransformMatrix, TransformMatrix
+from ..tetherbot    import TbTetherbot
+from ..tools        import tbbasefit, insideout
+from .Feasibility   import FeasibilityContainer
+from copy           import deepcopy
+from typing         import Tuple
 import matplotlib.pyplot as plt
 import numpy             as np
 
 class Workspace():
 
-    def __init__(self, bounds: np.ndarray, scale: np.ndarray, mode: str = 'first', threshold: float = 0) -> None:
+    def __init__(self, bounds: np.ndarray, scale: np.ndarray, mode: str = 'first') -> None:
 
         self._bounds = np.array(bounds)
         self._scale  = np.array(scale)
@@ -17,11 +18,6 @@ class Workspace():
         self._grid   = None
         self._vals   = None
         self._mode   = mode
-
-        if mode == 'first':
-            self._threshold = threshold
-        else:
-            self._threshold = None
 
     @property
     def mode(self) -> str:
@@ -40,6 +36,7 @@ class Workspace():
 
         if self._mode == 'max' or self._mode is None:
 
+            print('not implemented')
             # evaluate each coordinate of the grid
             for idx in range(len(self._grid)):
                 self._eval(idx)
@@ -54,10 +51,10 @@ class Workspace():
             for idx in range(len(self._grid)):
                 val, coordinate = self._eval(idx)
                 
-                if val > self._threshold:
+                if val:
                     return val, coordinate
 
-            return -1, None  
+            return 0, None  
         
         pass
 
@@ -113,10 +110,15 @@ class Workspace():
 
 class TbWorkspace(Workspace):
 
-    def __init__(self, scale: np.ndarray = np.ones(6), padding: np.ndarray = np.zeros(6), mode_2d: bool = False,  **kwargs) -> None:
+    def __init__(self, scale: np.ndarray = np.ones(6), padding: np.ndarray = np.zeros(6), mode_2d: bool = False, feasibility: FeasibilityContainer = None, **kwargs) -> None:
         
         self._padding = np.array(padding)
         self._mode_2d = mode_2d
+
+        if feasibility is None:
+            self.feasiblity = FeasibilityContainer()
+        else:
+            self.feasiblity = feasibility
 
         super().__init__(bounds = np.empty((6,2)), scale = scale, **kwargs)
 
@@ -168,17 +170,18 @@ class TbWorkspace(Workspace):
             T._T[2,-1] = self._tetherbot.platform.T_world.r[2]
             self._bounds[2,0] = 0
             self._bounds[2,1] = 0
-            self._bounds[3,0] = 0 #self._tetherbot.platform.T_world.decompose()[3]
-            self._bounds[3,1] = 0 #self._tetherbot.platform.T_world.decompose()[3]
-            self._bounds[4,0] = 0 #self._tetherbot.platform.T_world.decompose()[4]
-            self._bounds[4,1] = 0 #self._tetherbot.platform.T_world.decompose()[4]
+            self._bounds[3,0] = 0 
+            self._bounds[3,1] = 0
+            self._bounds[4,0] = 0
+            self._bounds[4,1] = 0
 
         return super().calculate(T)
 
     def _eval(self, idx: int) -> Tuple[float, np.ndarray]:
 
         self._tetherbot.platform.T_world = TransformMatrix(self._grid[idx])
-        self._vals[idx] = self._tetherbot.stability()[0]
+        
+        self._vals[idx] = self.feasiblity.eval(self._tetherbot)
 
         return self._vals[idx], self._grid[idx]
 
