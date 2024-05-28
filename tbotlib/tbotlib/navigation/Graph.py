@@ -4,17 +4,18 @@ from ..tools        import basefit, ang3, uniqueonly, tic, toc, tbbasefit
 from ..matrices     import TransformMatrix, NdTransformMatrix
 from .Workspace     import TbWorkspace
 from .Path          import Path6, ClimbPath
+from .Metric        import L1Metric, TbAlignmentMetric, StanceDisplacementMetric, ConstantMetric, _Metric
+from .Feasibility   import FeasibilityContainer, TbWrenchFeasibility, TbJointLimitFeasibility
 from typing         import Tuple, List, TYPE_CHECKING
 from abc            import ABC, abstractmethod
 from heapq          import heappop, heappush
 from copy           import deepcopy
 from math           import sqrt
 import numpy        as np
-import numpy.matlib as ml
 import networkx     as nx
 
 if TYPE_CHECKING:
-    from .Planner   import FastPlanPickAndPlace, PlanPlatform2Hold, PlanPlatform2Gripper
+    from .Planner   import PlanPlatform2Hold, PlanPlatform2Gripper
 
 class SearchGraph(ABC):
 
@@ -106,12 +107,12 @@ class SearchGraph(ABC):
     @abstractmethod
     def _calc_cost(self, u: Tuple, v: Tuple) -> float:
 
-        return 0
+        pass
 
     @abstractmethod
     def _calc_heuristic(self, u: Tuple) -> float:
 
-        return 0
+        pass
 
     @abstractmethod
     def _calc_reachable(self, u: Tuple) -> bool:
@@ -212,7 +213,7 @@ class SearchGraph(ABC):
 
 class GridGraph(SearchGraph):
 
-    def __init__(self, ndim: int = 3, directions: np.ndarray = None, bounds: np.ndarray = None, **kwargs) -> None:
+    def __init__(self, ndim: int = 3, directions: np.ndarray = None, heuristic: _Metric = None, cost: _Metric = None, **kwargs) -> None:
         
         self._ndim = ndim
         self._u    = np.zeros(self._ndim)
@@ -226,14 +227,6 @@ class GridGraph(SearchGraph):
             directions = np.array(directions)
         
         self._directions = directions
-
-        # bounds for getting potential neighbours
-        if bounds is None:
-            bounds = np.ones((self._ndim, 2)) * [-np.inf, np.inf]
-        else:
-            bounds = np.array(bounds)
-        
-        self._bounds = bounds
         
         # neighbours
         self._neighbours = np.zeros((2*sum(directions > 0), self._ndim)).astype(directions.dtype)
@@ -245,8 +238,17 @@ class GridGraph(SearchGraph):
                 self._neighbours[j*2+1,i] = -self._directions[i]
                 j += 1
 
-        super().__init__(**kwargs)
+        if cost is None:
+            self.cost = L1Metric()
+        else:
+            self.cost = cost
 
+        if heuristic is None:
+            self.heuristic = L1Metric()
+        else:
+            self.heuristic = heuristic
+
+        super().__init__(**kwargs)
 
     def _get_potential_neighbours(self, u: Tuple) -> List[Tuple]:
 
@@ -259,19 +261,18 @@ class GridGraph(SearchGraph):
         self._u[:] = u
         self._v[:] = v
 
-        return sum(abs(self._u-self._v)) #sqrt(sum((self._u-self._v)**2))
+        return self.cost.eval(self._u, self._v)
 
     def _calc_heuristic(self, u: Tuple) -> float:
         
         self._u[:] = u
         self._v[:] = self._goal
 
-        return sum(abs(self._u-self._v)) #sqrt(sum((self._u-self._v)**2))
+        return self.heuristic.eval(self._u, self._v)
 
     def _calc_reachable(self, u: Tuple) -> bool:
         
-        # inside bounds?
-        return all(self._bounds[:,0] <= self._u) and all(self._u <= self._bounds[:,1])
+        return True
     
     def _calc_traversable(self, u: Tuple, v: Tuple) -> bool:
 
@@ -319,12 +320,17 @@ class MapGraph(GridGraph):
 
 class TbPlatformPoseGraph(GridGraph):
 
-    def __init__(self, goal_dist: float = 0, goal_skew: float = 0, directions: np.ndarray = None, bounds: np.ndarray = None, **kwargs) -> None:
+    def __init__(self, goal_dist: float = 0, goal_skew: float = 0, directions: np.ndarray = None, feasiblity: FeasibilityContainer = None, **kwargs) -> None:
         
         self._goal_skew = goal_skew
         self._goal_dist = goal_dist
-      
-        super().__init__(ndim = 6, directions = directions, bounds = bounds, **kwargs) 
+
+        if feasiblity is None:
+            self.feasibility = FeasibilityContainer([TbWrenchFeasibility(10, 6)])
+        else:
+            self.feasibility = feasiblity
+            
+        super().__init__(ndim = 6, directions = directions, **kwargs) 
         
     def _get_potential_neighbours(self, u: Tuple) -> List[Tuple]:
         
@@ -332,24 +338,11 @@ class TbPlatformPoseGraph(GridGraph):
 
         return list(map(tuple, neighbours))
 
-    def  _calc_cost(self, u: Tuple, v: Tuple) -> float:
-        
-        return super()._calc_cost(u, v) 
-
-    def _calc_heuristic(self, u: Tuple) -> float:
-        
-        return super()._calc_heuristic(u) 
-
     def _calc_reachable(self, u: Tuple) -> bool:
         
-        if super()._calc_reachable(u):
+        self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(u)   
             
-            # pose stable?
-            self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(u)   
-            
-            return self._tetherbot.stability()[0]
-
-        return False
+        return self.feasibility.eval(self._tetherbot)
 
     def is_goal(self, u: Tuple) -> bool:
 
@@ -383,23 +376,18 @@ class TbPlatformPoseGraph(GridGraph):
 
 class TbPlatformAlignGraph(TbPlatformPoseGraph):
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, heuristic: _Metric = None, cost: _Metric = None, **kwargs) -> None:
+
+        if heuristic is None:
+            heuristic = TbAlignmentMetric()
+        if cost is None:
+            cost = ConstantMetric(0)
         
-        super().__init__(goal_dist = None, **kwargs)
+        super().__init__(goal_dist = None, heuristic = heuristic, cost = cost, **kwargs)
  
     def _calc_heuristic(self, u: Tuple) -> float:
 
-        self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(u)
-        
-        h = max(self._tetherbot.platform.arm.workspace_center.distance(self._goal1[:3]), \
-            self._tetherbot.platform.arm.workspace_center.distance(self._goal2[:3])) + \
-            ang3(self._tetherbot.platform.T_world.R[:,2], self._goal2[:3]-self._goal1[:3])
-        
-        return h
-    
-    def  _calc_cost(self, u: Tuple, v: Tuple) -> float:
-        
-        return 0
+        return self.heuristic.eval(u, self._goal1, self._goal2, self._tetherbot)
 
     def is_goal(self, u: Tuple) -> bool:
         
@@ -432,11 +420,16 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
 
 class TbArmPoseGraph(GridGraph):
 
-    def __init__(self, goal_dist: float = 0, directions: np.ndarray = None, bounds: np.ndarray = None, **kwargs) -> None:
+    def __init__(self, goal_dist: float = 0, directions: np.ndarray = None, feasiblity: FeasibilityContainer = None, **kwargs) -> None:
         
         self._goal_dist = goal_dist
 
-        super().__init__(ndim = 3, directions = directions, bounds = bounds, **kwargs) 
+        if feasiblity is None:
+            self.feasiblity = FeasibilityContainer([])
+        else:
+            self.feasiblity = feasiblity
+
+        super().__init__(ndim = 3, directions = directions, **kwargs) 
 
     def _get_potential_neighbours(self, u: Tuple) -> List[Tuple]:
 
@@ -446,16 +439,9 @@ class TbArmPoseGraph(GridGraph):
        
     def _calc_reachable(self, u: Tuple) -> bool:
 
-        # reachable with arm?
-        qs = self._tetherbot.platform.arm.ivk(TransformMatrix(u))
-        reachable = self._tetherbot.platform.arm.valid(qs)
-        
-        # collision with tether?
-        if reachable:
-            self._tetherbot.platform.arm.qs = qs
-            reachable = not self._tetherbot.tether_collision()
-        
-        return reachable
+        self._tetherbot.platform.arm.qs = self._tetherbot.platform.arm.ivk(TransformMatrix(u))
+
+        return self.feasiblity.eval(self._tetherbot)
 
     def is_goal(self, u: Tuple) -> bool:
 
@@ -463,7 +449,6 @@ class TbArmPoseGraph(GridGraph):
         self._v[:] = self._goal
 
         return sqrt(sum((self._u[:3] - self._v[:3])**2)) <= self._goal_dist
-
 
     def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = None) -> Path6:
         
@@ -495,13 +480,24 @@ class TbArmPoseGraph(GridGraph):
 
 class TbGlobalGraph2(SearchGraph):
 
-    def __init__(self, goal_dist: float = 0, platform2gripper: PlanPlatform2Gripper = None, platform2hold: PlanPlatform2Hold = None, workspace: TbWorkspace = None, cost: float = 0.05, **kwargs) -> None:
+    def __init__(self, goal_dist: float = 0, platform2gripper: PlanPlatform2Gripper = None, platform2hold: PlanPlatform2Hold = None, workspace: TbWorkspace = None, heuristic: _Metric = None, cost: _Metric = None, **kwargs) -> None:
         
         self._goal_dist = goal_dist
         self._platform2hold = platform2hold
         self._platform2gripper = platform2gripper
         self._workspace = workspace
-        self._cost = cost
+        
+        self.feasiblity = self._workspace.feasiblity
+
+        if heuristic is None:
+            self.heuristic = StanceDisplacementMetric()
+        else:
+            self.heuristic = heuristic
+
+        if cost is None:
+            self.cost = ConstantMetric(0)
+        else:
+            self.cost = cost
         
         super().__init__(auto_clear = False, **kwargs)
 
@@ -540,21 +536,11 @@ class TbGlobalGraph2(SearchGraph):
     
     def _calc_heuristic(self, u: Tuple) -> float:
 
-        if -1 in u:
-            u = list(u)
-            goal = list(self._goal)
-            i = u.index(-1)
-            u.pop(i)
-            goal.pop(i)
-        else:
-            goal = self._goal
-        
-        #return np.linalg.norm(np.mean(self._C[:,u],axis=1) - np.mean(self._C[:,goal],axis=1))
-        return np.sum(np.linalg.norm(self._C[:,u] - self._C[:,goal],axis=0)) / len(goal)
+        return self.heuristic.eval(u, self._goal, self._tetherbot)
 
     def _calc_cost(self, u: Tuple, v: Tuple) -> float:
 
-        return self._cost
+        return self.cost.eval(u, v, self._tetherbot)
     
     def _calc_reachable(self, u: Tuple) -> bool:
         # Note: Using u to place grippers not necessary as it was already done by get_neighbours
@@ -582,12 +568,12 @@ class TbGlobalGraph2(SearchGraph):
                         # check if reachable pose of the k-1 stance is feasible for the k stance
                         self._reachable_pose = self.get_reachable_pose(v)
                         self._tetherbot.platform.T_local = TransformMatrix(self._reachable_pose)
-                        reachable = self._tetherbot.stability()[0]
+                        reachable = self.feasiblity.eval(self._tetherbot)
                         if reachable:
                             break
                 if not reachable:
                     reachable, self._reachable_pose = self._workspace.calculate(self._tetherbot)
-        
+        print(u, reachable)
         # Note: Reachable pose will be added by add_node
         return reachable > 0
     
