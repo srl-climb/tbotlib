@@ -79,19 +79,20 @@ class TbGeometry(TbObject):
     @property
     def vertices_world(self) -> np.ndarray:
         
-        return np.asarray(self._geometry.vertices)
+        return self._vertices_world
 
     def _update_transforms(self) -> None:
              
-        if self._fast_mode is False:
-        
-            super()._update_transforms()
-
-            self._update_geometry()
+        super()._update_transforms()
+        self._update_geometry()
 
     def _update_geometry(self) -> None:
         
-        self._geometry.vertices = o3d.utility.Vector3dVector((self.T_world.R @ self._vertices.T + self.T_world.r[:,None]).T)
+        if self.fast_mode:
+            self._vertices_world = (self.T_world.R @ self._vertices.T + self.T_world.r[:,None]).T
+        else:
+            self._geometry.vertices = o3d.utility.Vector3dVector((self.T_world.R @ self._vertices.T + self.T_world.r[:,None]).T)
+            self._vertices_world = np.asarray(self._geometry.vertices)
 
     def save_as_trianglemesh(self, filename: str, write_ascii: bool = False, compressed: bool = False, write_vertex_normals: bool = True,
                               write_vertex_colors: bool = True, write_triangle_uvs: bool = True, print_progress: bool = False):
