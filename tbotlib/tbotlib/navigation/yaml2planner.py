@@ -2,7 +2,7 @@ from __future__ import annotations
 from .Planner import GlobalPlanner, PlanArm2Pose, PlanPickAndPlace2, PlanPlatform2Gripper, PlanPlatform2Configuration, PlanPlatform2Hold, PlanPlatform2Pose, FastPlanPickAndPlace, FastPlanPlatform2Configuration
 from .Smoother import BsplineSmoother
 from .Profile import ProfileQArm, ProfileQPlatform, FastProfile
-from .Graph import TbArmPoseGraph, TbGlobalGraph, TbPlatformAlignGraph, TbPlatformPoseGraph
+from .Graph import TbArmPoseGraph, TbGlobalGraph2, TbPlatformAlignGraph, TbPlatformPoseGraph
 from .Workspace import TbWorkspace
 import yaml
 
@@ -86,7 +86,7 @@ def yaml2planner(file: str):
         platform2gripper = platform2gripper,
         platform2hold = platform2hold)
     global_planner = GlobalPlanner(
-        graph = TbGlobalGraph(goal_dist = data['global']['graph']['goal_dist'], 
+        graph = TbGlobalGraph2(goal_dist = data['global']['graph']['goal_dist'], 
                                 planner = fast_local_planner, 
                                 workspace = TbWorkspace(padding = data['global']['graph']['workspace']['padding'],
                                                         scale = data['global']['graph']['workspace']['scale'],
