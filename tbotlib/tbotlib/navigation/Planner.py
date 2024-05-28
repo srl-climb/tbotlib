@@ -437,10 +437,10 @@ class FastPlanPickAndPlace(AbstractPlanner):
 
 class GlobalPlanner(AbstractPlanner):
 
-    def __init__(self, graph: TbGlobalGraph = None, localplanner: PlanPickAndPlace = None) -> None:
+    def __init__(self, graph: TbGlobalGraph2 = None, localplanner: PlanPickAndPlace = None) -> None:
         
         if graph is None:
-            graph = TbGlobalGraph(goal_dist=0.001, planner=FastPlanPickAndPlace(), workspace=TbWorkspace(padding=[-0.1,-0.1,0,-180,-180,-135], scale=[0.3,0.3,0.1,45,45,45], mode = 'first'))
+            graph = TbGlobalGraph2(goal_dist=0.001, planner=FastPlanPickAndPlace(), workspace=TbWorkspace(padding=[-0.1,-0.1,0,-180,-180,-135], scale=[0.3,0.3,0.1,45,45,45], mode = 'first'))
 
         if localplanner is None:
             localplanner = PlanPickAndPlace2()

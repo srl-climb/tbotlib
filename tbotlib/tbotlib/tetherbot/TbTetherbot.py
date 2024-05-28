@@ -340,7 +340,7 @@ class TbTetherbot(TbObject):
             # check if point is within the arm reach
             if lineseg_distance(polygon[2,:], polygon[1,:], polygon[3,:]) < self.platform.arm.workspace_radius:
                 # check if convex, filter out ill-conditioned polygons
-                if is_convex2(polygon, precision=6)[1] >= (self.k-1):
+                if is_convex2(polygon, precision=6)[1] > 0: #>= (self.k-1):
                     # filter out additional ill-conditioned polygons
                     if min_brec_width(polygon) > 0.51:
                         filter[i] = True
