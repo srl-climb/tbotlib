@@ -238,25 +238,13 @@ class TbTetherbot(TbObject):
         
         return np.linalg.norm(np.sum(F, axis=2), axis=1), exitflag
 
-    def stability(self, W: np.ndarray = None, ignore_tether_lengths: bool = False) -> Tuple[bool, float]:
+    def stability(self, W: np.ndarray = None) -> Tuple[bool, float]:
 
         if W is None:
             W = self.W
         
-        if ignore_tether_lengths:
-            inlimit = True
-        else:
-            inlimit = all(self._l_min < self.l) and all(self.l < self._l_max) 
-        
-        if inlimit:
-            outsideplatform = all(np.linalg.norm(self.A_world-self.platform.r_world[:,None], axis=0)>0.26)
-        else:
-            return False, -np.inf
-        
-        if outsideplatform:
-            return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
-        else:
-            return False, -np.inf
+        return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
+
         
     def tether_collision(self) -> bool:
         
