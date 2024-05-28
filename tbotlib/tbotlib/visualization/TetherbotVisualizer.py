@@ -47,9 +47,7 @@ class TetherbotVisualizer:
             for item in [tbobject] + tbobject.get_all_children():
                 if hasattr(item, 'geometry'):
                     self._geometries.append(item.geometry)
-
-            for geometry in self._geometries:
-                self._vi.add_geometry(geometry)
+                    self._vi.add_geometry(item.geometry)
 
     def remove_tbobject(self) -> None:
 

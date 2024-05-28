@@ -32,4 +32,16 @@ def cylindricalgrid(x: np.ndarray, y: np.ndarray, radius: float):
 
 if __name__ == "__main__":
 
-    print(cylindricalgrid([0,0.5,1],[0,1], 2))
+    import matplotlib.pyplot as plt
+
+    grid = cylindricalgrid([0,0.5,1,1.5,2,2.5], [0,0.5,1,1.5,2,2.5], 4)
+
+    fig, ax = plt.subplots()
+    ax.set_aspect('equal')
+    ax.set_xlim(-5,5)
+    ax.set_ylim(-5,5)
+    ax.scatter(grid[0,:],grid[2,:])
+    ax.add_patch(plt.Circle((0, -4), 4, ec=(0,0,0,1), lw=2, color='r'))
+    
+
+    plt.show()
