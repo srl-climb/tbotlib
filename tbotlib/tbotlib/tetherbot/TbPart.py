@@ -1,26 +1,36 @@
 from __future__    import annotations
 from .TbObject     import TbObject
 from .TbGeometry   import TbGeometry
+from .TbCollidable import TbCollidable
 from typing        import Type
 
 class TbPart(TbObject):
 
-    def __init__(self, geometries: list[Type[TbGeometry]] = None, children: list[Type[TbObject]] = None, **kwargs) -> None:
+    def __init__(self, geometries: list[Type[TbGeometry]] = None, collidables: list[Type[TbCollidable]] = None, children: list[Type[TbObject]] = None, **kwargs) -> None:
         
         if geometries is None:
             geometries = []
 
         if children is None:
             children = []
+
+        if collidables is None:
+            collidables = []
        
-        super().__init__(children = children + geometries, **kwargs)
+        super().__init__(children = children + geometries + collidables, **kwargs)
         
         self._geometries = geometries
+        self._collidables = collidables
 
     @property 
     def geometries(self) -> list[Type[TbGeometry]]:
 
         return self._geometries
+    
+    @property 
+    def collidables(self) -> list[Type[TbCollidable]]:
+
+        return self._collidables
 
     @geometries.setter
     def geometries(self, value: list[Type[TbGeometry]]) -> None:
@@ -51,3 +61,21 @@ class TbPart(TbObject):
         self._geometries.append(geometry)
 
         geometry.parent = self
+
+    def remove_collidable(self, collidable: Type[TbCollidable]) -> None:
+
+        self._collidables.remove(collidable)
+        self._remove_child(collidable)
+
+    def remove_collidables(self) -> None:
+
+        for collidable in self._collidables:
+            self._remove_child(collidable)
+
+        self._collidables.clear()
+
+    def add_collidable(self, collidable: Type[TbCollidable]) -> None:
+
+        self._collidables.append(collidable)
+
+        collidable.parent = self
