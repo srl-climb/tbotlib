@@ -100,6 +100,20 @@ class TransformMatrix(NdTransformMatrix):
         self.R = self.R @ rotM(theta_x, theta_y, theta_z, order)
 
         return self
+    
+    def rotate_around_axis(self, theta: float, axis: np.ndarray) -> TransformMatrix:
+        
+        axisnorm = np.linalg.norm(axis)
+    
+        if axisnorm > 0.000001:
+            axis = axis / axisnorm
+            theta = np.deg2rad(theta)
+
+            # Rodrigues rotation
+            K = np.cross(np.eye(3), axis)
+            self.R = self.R @ np.eye(3) + np.sin(theta) * K + (1 - np.cos(theta)) * (K @ K)
+
+        return self
 
     def decompose(self, order: str ='xyz') -> np.ndarray:
 
