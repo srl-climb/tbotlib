@@ -1,12 +1,11 @@
 from __future__     import annotations
 from ..tetherbot    import TbTetherbot
-from ..tools        import basefit, ang3, uniqueonly, tic, toc, tbbasefit
+from ..tools        import basefit, ang3, tbbasefit
 from ..matrices     import TransformMatrix, NdTransformMatrix
-from .Workspace     import TbWorkspace
 from .Path          import Path6, ClimbPath
 from .Metric        import L1Metric, TbAlignmentMetric, StanceDisplacementMetric, ConstantMetric, _Metric
-from .Feasibility   import FeasibilityContainer, TbWrenchFeasibility, TbJointLimitFeasibility
-from typing         import Tuple, List, TYPE_CHECKING
+from .Feasibility   import FeasibilityContainer, TbWrenchFeasibility
+from typing         import Tuple, List
 from abc            import ABC, abstractmethod
 from heapq          import heappop, heappush
 from copy           import deepcopy
@@ -14,8 +13,6 @@ from math           import sqrt
 import numpy        as np
 import networkx     as nx
 
-if TYPE_CHECKING:
-    from .Planner   import PlanPlatform2Hold, PlanPlatform2Gripper
 
 class SearchGraph(ABC):
 
@@ -69,8 +66,13 @@ class SearchGraph(ABC):
 
         # list of nodes to which an edge exist from u
         neighbours = []
+        potential_neighbours = self._get_potential_neighbours(u)
 
-        for neighbour in self._get_potential_neighbours(u):
+        if type(self) == TbStepGraph:
+            print('node', u)
+            print('candidates', potential_neighbours)
+
+        for neighbour in potential_neighbours:
             
             # if the neighbour hasn't been visited yet, add the node to the graph
             if not self._graph.has_node(neighbour):
@@ -86,16 +88,21 @@ class SearchGraph(ABC):
             if self.get_reachable(neighbour) > 0 and self.get_traversable(u, neighbour) > 0:
             
                 neighbours.append(neighbour)
+        
+        if type(self) == TbStepGraph:
+            print('neighbours', neighbours)
 
         return neighbours
 
     def add_node(self, u: Tuple) -> None:
 
+        self._graph.add_node(tuple(u), heuristic = 0, reachable = 0, gscore = 0, fscore = 0)
+
         heuristic = self._calc_heuristic(u)
         reachable = self._calc_reachable(u)
 
-        self._graph.add_node(tuple(u), heuristic = heuristic, reachable = reachable, gscore = 0, fscore = 0)
-        # set gscore/fscore to 0 as default values for the A-star search
+        self._graph.nodes[u]['heuristic'] = heuristic
+        self._graph.nodes[u]['reachable'] = reachable
 
     def add_edge(self, u: Tuple, v: Tuple) -> None:
 
@@ -331,6 +338,7 @@ class TbPlatformPoseGraph(GridGraph):
             self.feasibility = feasiblity
             
         super().__init__(ndim = 6, directions = directions, **kwargs) 
+
         
     def _get_potential_neighbours(self, u: Tuple) -> List[Tuple]:
         
@@ -348,12 +356,12 @@ class TbPlatformPoseGraph(GridGraph):
 
         self._u[:] = u
         self._v[:] = self._goal
-
         return sqrt(sum((self._u[:3] - self._v[:3])**2)) <= self._goal_dist and sqrt(sum((self._u[3:] - self._v[3:])**2)) <= self._goal_skew
 
     def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = np.zeros(6)) -> Path6:
 
         self._tetherbot = deepcopy(tetherbot)
+        self._tetherbot._update_transforms()
         
         if start is None:
             start = self._tetherbot.platform.T_world.decompose()      
@@ -367,7 +375,7 @@ class TbPlatformPoseGraph(GridGraph):
         transform = NdTransformMatrix(start, R)
 
         path = super().search(start, goal, transform)
-
+        
         if path is not None:
             path.replace(self._goal)
         
@@ -392,10 +400,19 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
     def is_goal(self, u: Tuple) -> bool:
         
         self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(u)
-        qs1 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal1))
-        qs2 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal2))
 
-        return self._tetherbot.platform.arm.valid(qs1) and self._tetherbot.platform.arm.valid(qs2) and ang3(self._tetherbot.platform.T_world.R[:,2], self._goal2[:3]-self._goal1[:3]) <= self._goal_skew
+        if ang3(self._tetherbot.platform.T_world.ez, self._goal2[:3]-self._goal1[:3]) <= self._goal_skew:
+            # remove remaining skew
+            self._v[:3] = self._goal2[:3]-self._goal1[:3]
+            self._u[:3] = self._tetherbot.platform.T_world.ez
+            self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.rotate_around_axis(-ang3(self._u[:3], self._v[:3]), np.cross(self._v[:3], self._u[:3]))
+
+            qs1 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal1))
+            qs2 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal2))
+
+            return self._tetherbot.platform.arm.factorvalid(qs1, 1) and self._tetherbot.platform.arm.factorvalid(qs2, 1) and self.feasibility.eval(self._tetherbot)
+
+        return False
 
     def search(self, tetherbot: TbTetherbot, start: np.ndarray = None, goal: np.ndarray = np.zeros((2,6))) -> Path6:
         
@@ -403,7 +420,8 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
         self._goal2 = goal[1] #secondary goal (point for hovering)
        
         self._tetherbot = deepcopy(tetherbot)
-
+        self._tetherbot._update_transforms()
+        
         if start is None:
             start = self._tetherbot.platform.T_world.decompose()      
         
@@ -415,8 +433,18 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
 
         transform = NdTransformMatrix(start, R)
 
-        return super(TbPlatformPoseGraph, self).search(start, self._goal1, transform)
+        path =  super(TbPlatformPoseGraph, self).search(start, self._goal1, transform)
 
+        if path is not None:
+            self._v[:3] = self._goal2[:3]-self._goal1[:3]
+            self._u[:3] = self._tetherbot.platform.T_world.ez[:3]
+            self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.rotate_around_axis(ang3(self._v[:3], self._u[:3]), np.cross(self._v[:3], self._u[:3]))
+            path.replace(self._tetherbot.platform.T_world.decompose())
+
+        qs1 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal1))
+        qs2 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal2))
+
+        return path
 
 class TbArmPoseGraph(GridGraph):
 
@@ -454,10 +482,10 @@ class TbArmPoseGraph(GridGraph):
         
         if goal is None:
             goal = np.zeros(3)
-        
+
         self._tetherbot = deepcopy(tetherbot)
         self._tetherbot._update_transforms()
-        
+
         if start is None:
             start = self._tetherbot.platform.arm.links[-1].T_world.r
  
@@ -478,16 +506,13 @@ class TbArmPoseGraph(GridGraph):
         return path
     
 
-class TbGlobalGraph2(SearchGraph):
+class TbStepGraph(SearchGraph):
 
-    def __init__(self, goal_dist: float = 0, platform2gripper: PlanPlatform2Gripper = None, platform2hold: PlanPlatform2Hold = None, workspace: TbWorkspace = None, heuristic: _Metric = None, cost: _Metric = None, **kwargs) -> None:
+    def __init__(self, goal_dist, step_feasibility: FeasibilityContainer, stance_feasibility: FeasibilityContainer, heuristic: _Metric = None, cost: _Metric = None, **kwargs) -> None:
         
+        self.step_feasibility = step_feasibility
+        self.stance_feasibility = stance_feasibility
         self._goal_dist = goal_dist
-        self._platform2hold = platform2hold
-        self._platform2gripper = platform2gripper
-        self._workspace = workspace
-        
-        self.feasiblity = self._workspace.feasiblity
 
         if heuristic is None:
             self.heuristic = StanceDisplacementMetric()
@@ -503,11 +528,7 @@ class TbGlobalGraph2(SearchGraph):
 
     def get_neighbours(self, u: Tuple) -> List[Tuple]:
 
-        for grip_idx, hold_idx in zip(range(self._tetherbot.k), u):
-                if hold_idx == -1:
-                    self._tetherbot.pick(grip_idx, True)
-                else:
-                    self._tetherbot.place(grip_idx, hold_idx, True)
+        self._tetherbot.place_all(u, correct_pose = True)
 
         return super().get_neighbours(u)
 
@@ -517,10 +538,10 @@ class TbGlobalGraph2(SearchGraph):
         neighbours = []
         if -1 in u:
             grip_idx = u.index(-1)
-            for hold_idx in self._tetherbot.filter_holds(grip_idx, self._C):
-                neighbour = list(u)
-                neighbour[grip_idx] = hold_idx
-                if len(neighbour) == len(set(neighbour)):
+            for hold_idx in range(self._tetherbot.wall.n):
+                if hold_idx not in u:
+                    neighbour = list(u)
+                    neighbour[grip_idx] = hold_idx
                     neighbours.append(neighbour)
         # k stance
         else:
@@ -528,9 +549,6 @@ class TbGlobalGraph2(SearchGraph):
                 neighbour = list(u)
                 neighbour[grip_idx] = -1
                 neighbours.append(neighbour)
-
-        print(u)
-        print('neigbhours ', neighbours)
 
         return list(map(tuple, neighbours))
     
@@ -545,66 +563,12 @@ class TbGlobalGraph2(SearchGraph):
     def _calc_reachable(self, u: Tuple) -> bool:
         # Note: Using u to place grippers not necessary as it was already done by get_neighbours
 
-        # k-1 stance
-        if -1 in u:
-            grip_idx = u.index(-1)
-            self._tetherbot.tension(grip_idx, False)
-            reachable, self._reachable_pose = self._workspace.calculate(self._tetherbot)
-            self._tetherbot.tension(grip_idx, True)
-        # k stance
-        else:
-            # first check if there are any k-1 stances with stable poes
-            # usually a stable pose in the k-1 stance is also stable for the k stance (not necessarly though, for example cable limits might not be met)
-            for i in range(self._tetherbot.k):
-                # create k-1 stance
-                v    = list(u)
-                v[i] = -1
-                v = tuple(v)
-                # check if k-1 stance is in the grpah
-                reachable = False
-                if self._graph.has_node(v):
-                    # check if k-1 stance is feasible
-                    if self.get_reachable(v):
-                        # check if reachable pose of the k-1 stance is feasible for the k stance
-                        self._reachable_pose = self.get_reachable_pose(v)
-                        self._tetherbot.platform.T_local = TransformMatrix(self._reachable_pose)
-                        reachable = self.feasiblity.eval(self._tetherbot)
-                        if reachable:
-                            break
-                if not reachable:
-                    reachable, self._reachable_pose = self._workspace.calculate(self._tetherbot)
-        print(u, reachable)
-        # Note: Reachable pose will be added by add_node
-        return reachable > 0
-    
-    def add_node(self, u: Tuple) -> None:
-
-        super().add_node(u)
-
-        self.set_reachable_pose(u, self._reachable_pose)
+        return  self.stance_feasibility.eval(u, self._tetherbot, self)
     
     def _calc_traversable(self, u: Tuple, v: Tuple) -> bool:
         # Note: Using u to place grippers not necessary as it was already done by get_neighbours
 
-        # k-1 stance
-        if -1 in u:
-            # place
-            grip_idx = u.index(-1)
-            hold_idx = v[grip_idx]
-            self._tetherbot.platform.T_world = TransformMatrix(self.get_reachable_pose(u))
-            self._tetherbot.tension(grip_idx, False)
-            traversable = self._platform2hold.plan(self._tetherbot, hold_idx)[2]
-            self._tetherbot.tension(grip_idx, True)
-        # k stance
-        elif -1 in v:     
-            # pick
-            grip_idx = v.index(-1)
-            self._tetherbot.platform.T_world = TransformMatrix(self.get_reachable_pose(v)) #u
-            self._tetherbot.tension(grip_idx, False)
-            traversable = self._platform2gripper.plan(self._tetherbot, grip_idx)[2]
-            self._tetherbot.tension(grip_idx, True)
-
-        return traversable is not None
+        return self.step_feasibility.eval(u, v, self._tetherbot, self)
     
     def set_reachable_pose(self, u: Tuple, value: np.ndarray) -> None:
 
@@ -624,14 +588,10 @@ class TbGlobalGraph2(SearchGraph):
     def search(self, tetherbot: TbTetherbot, start: Tuple, goal: Tuple) -> ClimbPath: 
         
         self._tetherbot = deepcopy(tetherbot)
-        self._k         = self._tetherbot.k
-        self._C         = self._tetherbot.C_world
-        self._u         = np.empty(self._k)
-        self._v         = np.empty(self._k)
-
         self._tetherbot.remove_all_geometries()
         self._tetherbot.toggle_fast_mode(True)
-        
+        self._tetherbot._update_transforms()
+
         data = super().search(start, goal)
 
         if data is not None: 
