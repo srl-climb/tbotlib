@@ -114,7 +114,7 @@ def basefit(points: np.ndarray, axis: int = 0, output_format: int = 0) -> Tuple[
 
         pass
 
-def tbbasefit(tbot: TbTetherbot, output_format: int = 0 ):
+def tbbasefit(tbot: TbTetherbot, output_format: int = 0, iters: int = 4):
     '''
     Fit a coordinate system to a tetherbot
     points: numpy array
@@ -125,7 +125,7 @@ def tbbasefit(tbot: TbTetherbot, output_format: int = 0 ):
     # temporary transformation matrix
     T_temp = basefit(tbot.A_world[:, tbot.tensioned], axis = 0, output_format = 1)
     # basefit returns transformation based on a singular-value-decomposition, hence the axes might be flipped/mirrored
-
+    
     # flip z axis in the correct direction using one of the grippers z axes as a reference direction
     if np.dot(T_temp.ez, tbot.grippers[0].T_world.ez) < 0:
         T_temp._T[:3,2] *= -1
@@ -138,8 +138,8 @@ def tbbasefit(tbot: TbTetherbot, output_format: int = 0 ):
     l_min = np.inf
     R_min = np.eye(3)
 
-    for i in range(4):
-        R = T_temp.R @ rotM(0, 0, 90*i, 'xyz')
+    for i in range(iters):
+        R = T_temp.R @ rotM(0, 0, (i/iters)*360, 'xyz')
 
         # sum of all tether lengths
         l = np.sum(np.linalg.norm(tbot.A_world[:, tbot.tensioned] - (T_temp.r[:, None] + R @ tbot.B_local[ :,tbot.tensioned]), axis=0))
