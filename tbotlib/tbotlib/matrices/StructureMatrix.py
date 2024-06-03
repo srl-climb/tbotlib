@@ -42,11 +42,11 @@ class StructureMatrix:
 
             # Compute unit vectors be deviding each column vector of the cable vector by its length
             U = L / np.linalg.norm(L, axis=0)
-
+            
             # Compute structure matrix/transpose of the Jacobian
             self._AT = np.zeros((L.shape[0]*2 , L.shape[1]))
             self._AT[:3,:] = U
-            self._AT[3:,:] = np.einsum('ijk,ja,ka->ia', self._H, B, U)
+            self._AT[3:,:] = np.einsum('ijk,ja,ka->ia', self._H, B, U) 
             # same as cross(B, U, axis=0), but faster for smaller arrays
 
 if __name__ == "__main__":
