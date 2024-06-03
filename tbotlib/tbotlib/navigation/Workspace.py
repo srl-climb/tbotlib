@@ -198,3 +198,66 @@ class TbWorkspace(Workspace):
 
         plt.show()
 
+
+class TbWorkspace2(Workspace):
+
+    def __init__(self, stepsize: np.ndarray, stepnum: np.ndarray, feasibility: FeasibilityContainer = None, mode: str = 'first', **kwargs) -> None:
+        
+        self.mode = mode
+
+        if feasibility is None:
+            self.feasiblity = FeasibilityContainer()
+        else:
+            self.feasiblity = feasibility
+
+        grid = []
+        for s, n in zip(stepsize, stepnum):
+            grid.append(np.arange(start=-n, stop=n+1)*s)
+        
+        grid = np.array(np.meshgrid(*grid, indexing = 'ij')).T.reshape(-1,6)
+
+        mask = np.arange(0, len(grid))
+        mask = (-1)**(1+mask) * ((mask + 1) // 2)
+        mask = mask - mask[-1]
+
+        self._grid = grid[mask]
+        self._vals = np.zeros(self._grid.shape[0])
+
+    def calculate(self, tetherbot: TbTetherbot) -> Tuple[float, np.ndarray]:
+        
+        self._tetherbot = deepcopy(tetherbot)
+        self._tetherbot._update_transforms()
+        self._vals[:] = 0
+
+        # first guess
+        T = tbbasefit(self._tetherbot, output_format = 1, iters = 8)
+
+        # transformation of the workspace grid
+        R = np.eye(6)
+        r = np.zeros(6)
+        r        = T.decompose()
+        R[:3,:3] = T.R
+        
+        # analyse workspace
+        for i in range(len(self._grid)):
+            self._tetherbot.platform.T_world = TransformMatrix(R @ self._grid[i] + r)
+            self._vals[i] = self.feasiblity.eval(self._tetherbot)
+
+            if self._vals[i] and self.mode == 'first':
+                break
+                    
+        return self._vals[i], self._tetherbot.platform.T_world.decompose()
+
+    def debug_plot(self):
+
+        ax = plt.figure().add_subplot(projection='3d')   
+
+        idx = self._vals > 0
+        ax.scatter(self._grid[:,0][idx], self._grid[:,1][idx], self._grid[:,2][idx], c='g', s=50)
+        ax.scatter(self._grid[:,0], self._grid[:,1], self._grid[:,2], s=2)
+        ax.scatter([8.98400e-01],[5.06900e-01],[-3.59000e-02], c='r', s=50)
+        ax.scatter([6.77536169e-01],[1.06441181e+00],[-2.91502785e-02], c='r', s=50)
+        print(self._grid.shape)
+
+        plt.show()
+
