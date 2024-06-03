@@ -26,4 +26,4 @@ from .splinefit                     import polysplinefit
 from .lineseg_distance              import lineseg_distance
 from .ArangeDict                    import ArangeDict
 from .is_convex2                    import is_convex2
-from .min_brec_width                import min_brec_width
+from .bbox_size                     import bbox_size

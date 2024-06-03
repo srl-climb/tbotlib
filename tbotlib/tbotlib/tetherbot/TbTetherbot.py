@@ -1,6 +1,6 @@
 from __future__      import annotations
 from ..fdsolvers     import QuadraticProgram, AdaptiveCWSolver
-from ..tools         import Ring, Mapping, hyperRectangle, lineseg_distance, tbbasefit, is_convex2, min_brec_width
+from ..tools         import Ring, Mapping, hyperRectangle, lineseg_distance, tbbasefit, is_convex2, bbox_size
 from ..matrices      import StructureMatrix, TransformMatrix, rotM
 from ..visualization import TetherbotVisualizer
 from .TbObject       import TbObject
@@ -10,6 +10,7 @@ from .TbTether       import TbTether
 from .TbWall         import TbWall
 from .TbPart         import TbPart
 from .TbGeometry     import TbCylinder, TbSphere, TbTethergeometry
+from .TbSet          import TbSet, TbTetherForceSet
 from typing          import Tuple
 from scipy.optimize  import least_squares
 import numpy as np
@@ -17,8 +18,8 @@ import numpy as np
 class TbTetherbot(TbObject):
 
     def __init__(self, platform: TbPlatform = None, grippers: list[TbGripper] = None, tethers: list[TbTether] = None, wall: TbWall = None,
-                 w: np.ndarray = None, W: np.ndarray = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, 
-                 tether_collision_margin: float = -1.0, **kwargs) -> None:
+                 w: np.ndarray = None, W: TbSet = None, F: TbTetherForceSet = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, 
+                 **kwargs) -> None:
         
         super().__init__(children = [platform, wall], **kwargs)
         # do not pass tethers as children, as they will become children of the anchorpoints later
@@ -33,8 +34,6 @@ class TbTetherbot(TbObject):
         self._A         = np.empty((3, self._m))
         self._B         = np.empty((3, self._m))
         self._C         = np.empty((3, wall.n))
-        self._f_max     = np.empty(self._m)
-        self._f_min     = np.empty(self._m)
         self._tensioned = np.full(self._m, True, dtype=bool)
         self._AT        = StructureMatrix()
         self._fdsolver  = QuadraticProgram(self._m, self._n)
@@ -43,17 +42,22 @@ class TbTetherbot(TbObject):
         self._mode_2d   = mode_2d
         self._l_min     = l_min
         self._l_max     = l_max
-        self._tether_collision_margin = tether_collision_margin
         
         if w is None:
             self._w = np.zeros(self._n)
         else:
             self._w = np.array(w)
 
-        if W is None:
-            self.W = np.zeros((1,self._n))
+        if F is None:
+            self.F = TbTetherForceSet(np.array([tether.f_min for tether in tethers]), np.array([tether.f_max for tether in tethers]))
         else:
-            self.W = np.array(W)
+            self.F = F
+
+        if W is None:
+            self.W = TbSet(parent = platform)
+        else:
+            self.W = W
+            self.W.parent = platform
 
         if mapping is None:
             self._mapping = Mapping([[i//2,i] for i in range(self._m)])
@@ -70,10 +74,9 @@ class TbTetherbot(TbObject):
 
         self._update_transforms()
         
-
     @property
     def platform(self) -> TbPlatform:
-        
+         
         return self._platform
 
     @property
@@ -153,26 +156,16 @@ class TbTetherbot(TbObject):
 
         return np.linalg.norm(self.L, axis=0)
 
-    @property   # Structure matrix
+    @property   # Structure matrix (referenced to the platform coordinate frame!)
     def AT(self) -> np.ndarray:
-
-        return self._AT(self.L, self.B_world)
-
-    @property   # Tether min forces
-    def f_min(self) -> np.ndarray:
+        i = 0
 
         for i in range(self._m):
-            self._f_min[i] = self._tethers[i].f_min
+            self._A[:, i] = self.platform.R_world.T @ (self.grippers[self._mapping.a_to_b[i,0]].anchorpoint.r_world - self.platform.r_world)
+            self._B[:,i] = self.platform.anchorpoints[self._mapping.a_to_b[i,1]].r_local
 
-        return self._f_min
+        return self._AT(self._A - self._B, self._B)
 
-    @property   # Tether max forces
-    def f_max(self) -> np.ndarray:
-
-        for i in range(self._m):
-            self._f_max[i] = self._tethers[i].f_max
-        
-        return self._f_max
 
     @property   # wrench
     def w(self) -> np.ndarray:
@@ -224,7 +217,7 @@ class TbTetherbot(TbObject):
         if w is None:
             w = self._w
         
-        return self._fdsolver.eval(self.AT, w, self.f_min, self.f_max)
+        return self._fdsolver.eval(self.AT, w, self.F.f_min, self.F.f_max)
 
     def gripperforces(self, w: np.ndarray = None) -> tuple[np.ndarray, int]:
 
@@ -243,20 +236,7 @@ class TbTetherbot(TbObject):
         if W is None:
             W = self.W
         
-        return self._cwsolver.eval(self.AT, W, self.f_min, self.f_max, self._tensioned)
-
-        
-    def tether_collision(self) -> bool:
-        
-        if self._tether_collision_margin < 0:
-            return False
-
-        for tether, tensioned in zip(self._tethers, self._tensioned):
-            if tensioned:
-                if lineseg_distance(self.platform.arm.links[-1].r_world, tether.anchorpoints[0].r_world, tether.anchorpoints[1].r_world) < self._tether_collision_margin:
-                    return True
-        
-        return False
+        return self._cwsolver.eval(self.AT, W, self.F, self._tensioned)
 
     def tension(self, idx_gripper: int, value: bool) -> None:
         
@@ -330,7 +310,7 @@ class TbTetherbot(TbObject):
                 # check if convex, filter out ill-conditioned polygons
                 if is_convex2(polygon, precision=6)[1] > 0: #>= (self.k-1):
                     # filter out additional ill-conditioned polygons
-                    if min_brec_width(polygon) > 0.51:
+                    if bbox_size(polygon) > 0.51:
                         filter[i] = True
             
         return filter.nonzero()[0]
@@ -375,8 +355,8 @@ class TbTetherbot(TbObject):
         print('Gripper anchor points A_world: ', np.round(self.A_world, 2))
         print('Platform anchor points B_world: ', np.round(self.B_world, 2))
         print('Platform pose:', np.round(self.platform.T_world.decompose(), 2))
-        print('Max tether force:', self.f_max)
-        print('Min tehter force:', self.f_min)
+        print('Max tether force:', self.F.f_max)
+        print('Min tether force:', self.F.f_min)
         print('Current tether force:', np.round(self.forces()[0], 2))
         print('Tensioned tethers:', self.tensioned)
         print('Mapping of a to b:', self.mapping.a_to_b)
