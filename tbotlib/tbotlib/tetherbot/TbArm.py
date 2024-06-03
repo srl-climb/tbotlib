@@ -83,17 +83,30 @@ class TbArm(TbPart):
 
         if qs is None:
             qs = self.qs
-
+       
         for link, q in zip(self.links, qs):
-            if between(q, link.qlim)[0] == 0:                
+            if not between(q, link.qlim)[0]:                
                 return False
 
+        return True
+    
+    def factorvalid(self, qs: np.ndarray = None, factor: float = 0.9) -> bool:
+
+        if qs is None:
+            qs = self.qs
+
+        for link, q in zip(self.links, qs):
+            midpoint = (link.qlim[0] + link.qlim[1])/2
+            interval = (link.qlim[1] - link.qlim[0])*factor 
+
+            if not between(q, [midpoint-interval/2-0.00001, midpoint+interval/2+0.00001])[0]: #0.00001 floating points correction
+                return False
+            
         return True
 
     def reachable(self, T: TransformMatrix) -> bool:
 
         return self.valid(self.ivk(T))
-
 
     @property
     def dhp(self) -> np.ndarray:
