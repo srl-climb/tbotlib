@@ -1,10 +1,13 @@
 from __future__     import annotations
 from .FD            import QuadraticProgram, ImprovedClosedMethod
-from typing         import Union, Tuple
+from typing         import Union, Tuple, TYPE_CHECKING
 from scipy.spatial  import ConvexHull as qhull
 from itertools      import combinations
 import numpy      as np
 #import tensorflow as tf
+
+if TYPE_CHECKING:
+    from ..tetherbot    import TbSet, TbTetherForceSet
 
 class Base():
 
@@ -12,9 +15,8 @@ class Base():
 
         self._m = m
         self._n = n
-        
 
-    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple[bool, float]:
+    def eval(self, AT: np.ndarray, W: TbSet, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple[bool, float]:
 
         exitflag = False
 
@@ -69,7 +71,7 @@ class QuickHull(Base):
         self._q     = 2**self._m                    # number of vertices in the feasible force set
         self._F     = np.empty((self._m, self._q))  # feasible force set, vertice-representation
 
-    def eval(self, AT: np.ndarray, W_T: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
+    def eval(self, AT: np.ndarray, W: TbSet, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
         
         # calculate vertices of the feasible force set   
         for k in range(self._q):
@@ -89,7 +91,7 @@ class QuickHull(Base):
         #       - output: each column is normal, offset
 
         # calculate stability
-        s = (W_T@W_F[:-1,:]-W_F[-1,:]) #/ np.linalg.norm(W_F[:-1,:], axis=0) not necessary
+        s = W.hdistance(W_F[:-1,:], W_F[-1,:])
         
         if s.size == 0:
             print('Warning: zero size stability array')
@@ -126,7 +128,7 @@ class HyperPlaneShifting(Base):
         self._h2[::2]  = 1
         self._h2[1::2] = -1
 
-    def eval(self, AT: np.ndarray, W_T: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
+    def eval(self, AT: np.ndarray, W: TbSet, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
         
         # linear independent combinations of AT
         I_0 = self._I[np.sum(np.linalg.svd(AT.T[self._I,:], compute_uv=False) > 1e-10, axis=1) == self._n-1]
@@ -164,16 +166,16 @@ class HyperPlaneShifting(Base):
         W_F              = -W_F 
         # Note: - input:  each column is a point
         #       - output: each column is normal, offset
-        
+
         # calculate stability
-        s = (W_T@W_F[:-1,:]-W_F[-1,:]) #/ np.linalg.norm(W_F[:-1,:], axis=0) not necessary
+        s = W.hdistance(W_F[:-1,:], W_F[-1,:])
 
         if s.size == 0:
             print('Warning: zero size stability array')
             s = -1
         else:
             s = np.min(s)
-        
+
         return s/1, s>=0
 
 
@@ -188,8 +190,8 @@ class AdaptiveCWSolver(Base):
         for i in range(self._m+1):
             self._solvers[i] = HyperPlaneShifting(i, self._n)
 
-    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple[bool, float]:
+    def eval(self, AT: np.ndarray, W: TbSet, F: TbTetherForceSet, tensioned: np.ndarray) -> Tuple[bool, float]:
         
         m = np.sum(tensioned)
 
-        return self._solvers[m].eval(AT[:,tensioned], W, f_min[tensioned], f_max[tensioned])
+        return self._solvers[m].eval(AT[:,tensioned], W, F.f_min[tensioned], F.f_max[tensioned])
