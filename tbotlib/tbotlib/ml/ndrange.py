@@ -18,11 +18,10 @@ def ndrange(start: Union[Iterable, np.ndarray], stop: Union[Iterable, np.ndarray
     num = (stop - start)//step+1
     base = np.cumprod(num)//num
     
-    print(np.prod(num, dtype=np.int64))
     for i in range(np.prod(num, dtype=np.int64)):
 
         result = start + (i // base % num) * step
-        
+
         yield result.reshape(shape)
 
     
