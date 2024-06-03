@@ -1,5 +1,6 @@
 from __future__ import annotations
-from .TbObject      import TbObject
+from typing     import TYPE_CHECKING
+from .TbObject  import TbObject
 import open3d as o3d
 import numpy  as np
 from copy import deepcopy
@@ -63,12 +64,12 @@ class TbCollidable(TbObject):
         self._update_geometry()
 
     def _update_geometry(self) -> None:
+
+        self._points_world = (self.T_world.R @ self._points.T + self.T_world.r[:,None]).T
         
-        if self.fast_mode:
-            self._points_world = (self.T_world.R @ self._points.T + self.T_world.r[:,None]).T
-        else:
-            self._geometry.points = o3d.utility.Vector3dVector((self.T_world.R @ self._points.T + self.T_world.r[:,None]).T)
-            self._points_world = np.asarray(self._geometry.points)
+        if not self.fast_mode:            
+            self._geometry.points = o3d.utility.Vector3dVector(self._points_world)
+
 
     def save_as_trianglemesh(self, filename: str, write_ascii: bool = False, compressed: bool = False, print_progress: bool = False):
 
@@ -141,3 +142,23 @@ class TbBoxCollidable(TbCollidable):
     def dimensions(self) -> list[float]:
 
         return self._dimensions
+    
+
+class TbTetherCollidable(TbCollidable):
+
+    def __init__(self, radius: float = 0.001, height_subdivisions: int = 1, radial_subdivisions: int = 4, **kwargs) -> None:
+
+        self._radius = radius
+
+        geometry = o3d.geometry.LineSet(o3d.utility.Vector3dVector([[0,0,0],[1,1,1]]), o3d.utility.Vector2iVector([[0,1]]))
+
+        self._scale = np.ones(3)[:, None]    # scale factor for changing the height of the tether cylinder
+
+        TbCollidable.__init__(self, geometry = geometry, **kwargs)
+    
+    def _update_geometry(self) -> None:
+
+        self._points_world = np.array([self.parent.anchorpoints[0].r_world, self.parent.anchorpoints[1].r_world])
+        
+        if not self.fast_mode:
+            self._geometry.points = o3d.utility.Vector3dVector(self._points_world)
