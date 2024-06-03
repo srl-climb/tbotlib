@@ -18,7 +18,7 @@ def lineseg_distance(p, a, b):
 
     # perpendicular distance component
     c = np.cross(p - a, d)
-
+    
     return np.hypot(h, np.linalg.norm(c))
 
 if __name__ == '__main__':
@@ -37,3 +37,9 @@ if __name__ == '__main__':
 
     print('point in segment on distance')
     print(lineseg_distance(np.array([0.1,1,0]),a,b))
+
+    print('last test')
+    a = np.array([0.98961584,  0.,         -0.12435031])
+    b = np.array([0.49869893,  2.5 ,       -0.03120933])
+    c = np.array([ 0.98961584 , 0.  ,       -0.12435031])
+    print(lineseg_distance(c,a,b))
