@@ -4,19 +4,17 @@ from typing         import Union, Tuple, TYPE_CHECKING
 from scipy.spatial  import ConvexHull as qhull
 from itertools      import combinations
 import numpy      as np
-#import tensorflow as tf
 
 if TYPE_CHECKING:
-    from ..tetherbot    import TbSet, TbTetherForceSet
+    from ..tetherbot    import TbWrenchSet, TbTetherForceSet, TbPolytopeWrenchSet
 
 class Base():
 
-    def __init__(self, m: int, n: int=6):
+    def __init__(self):
 
-        self._m = m
-        self._n = n
+        self._n = 6
 
-    def eval(self, AT: np.ndarray, W: TbSet, f_min: np.ndarray, f_max: np.ndarray, tensioned: np.ndarray) -> Tuple[bool, float]:
+    def eval(self, W: TbWrenchSet, F: TbTetherForceSet) -> Tuple[float, bool]:
 
         exitflag = False
 
@@ -36,22 +34,20 @@ class CornerCheck(Base):
     exitflag    TRUE if a valid force distribution was found for each wrench
     """
 
-    def __init__(self, m: int, n: int=6, fdsolver: Union[QuadraticProgram, ImprovedClosedMethod] = None):
+    def __init__(self, fdsolver: Union[QuadraticProgram, ImprovedClosedMethod] = None):
 
-        super().__init__(m, n)
+        super().__init__()
 
         if fdsolver is None:
-            self._fdsolver = QuadraticProgram(m, n)
+            self._fdsolver = QuadraticProgram()
         else:
             self._fdsolver = fdsolver
 
 
-    def eval(self, AT: np.ndarray, W: np.ndarray, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
+    def eval(self, W: TbPolytopeWrenchSet, F: TbTetherForceSet, *_) -> Tuple[float, bool]:
 
-        W = np.atleast_2d(W)
-
-        for w in W:
-            _, exitflag = self._fdsolver.eval(AT, w, f_min, f_max)
+        for w in W.vertices_world:
+            _, exitflag = self._fdsolver.eval(F, w)
             if exitflag == False:
                 break
 
@@ -64,29 +60,13 @@ class QuickHull(Base):
     Capacity criterion based on 2014_Guay_Measuring: How Well a Structure Supports Varying External Wrenches
     '''
 
-    def __init__(self, m: int, n: int=6):
-
-        super().__init__(m, n)
-
-        self._q     = 2**self._m                    # number of vertices in the feasible force set
-        self._F     = np.empty((self._m, self._q))  # feasible force set, vertice-representation
-
-    def eval(self, AT: np.ndarray, W: TbSet, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
+    def eval(self, W: TbWrenchSet, F: TbTetherForceSet, *_) -> Tuple[float, bool]:
         
-        # calculate vertices of the feasible force set   
-        for k in range(self._q):
-
-            # convert k to binary representation
-            k_beta = np.frombuffer(np.binary_repr(k, width=self._m).encode(), 'u1') - 48
-
-            # vertices of the feasible force set
-            self._F[:,k] = (np.eye(self._m) - np.diag(k_beta))@f_min + np.diag(k_beta)@f_max
-        
-        # project feasible force set to wrench space
-        W_F = -AT@self._F
+        # project vertices of feasible force set to wrench space
+        W_F = -F.AT() @ F.vertices().T
         
         # convex hull representation of the feasible force in the wrench space
-        W_F = qhull(W_F.T, qhull_options='Qx').equations.T
+        W_F = qhull(W_F.T, qhull_options='Q14').equations.T
         # Note: - input:  each column is a point
         #       - output: each column is normal, offset
 
@@ -109,30 +89,41 @@ class HyperPlaneShifting(Base):
     Capacity criterion based on 2014_Guay_Measuring: How Well a Structure Supports Varying External Wrenches
     '''
 
-    def __init__(self, m: int, n: int=6):
+    def __init__(self):
 
-        super().__init__(m, n)
+        super().__init__()
 
-        #tf.config.set_visible_devices([], 'GPU') # avoid using the GPU
-
-        # possible combinations of n-1 columns of AT
-        self._I = np.array(list(combinations(range(self._m), self._n-1)))   
+        # cache variable for possible combinations of n-1 columns of AT
+        self._combinations: dict[int, np.ndarray] = {}   
         
-        # helper variable: used to remove rows from U
+        # helper variable to remove rows from U
         self._h1 = np.empty((self._n, self._n-1, self._n))
         for i in range(self._n):
             self._h1[i,:,:] = np.eye(self._n)[i != np.array(range(self._n)),:]
 
-        # helper variable: used to create alternating signs
+        # helper variable to create alternating signs
         self._h2 = np.empty((self._n,1))
         self._h2[::2]  = 1
         self._h2[1::2] = -1
 
-    def eval(self, AT: np.ndarray, W: TbSet, f_min: np.ndarray, f_max: np.ndarray, *_) -> Tuple[bool, float]:
+    def combinations(self, m: int) -> np.ndarray:
+
+        if m not in self._combinations:
+            self._combinations[m] = np.array(list(combinations(range(m), self._n-1)))
+        
+        return self._combinations[m]
+
+    def eval(self, W: TbWrenchSet, F: TbTetherForceSet, *_) -> Tuple[float, bool]:
+
+        # structure matrix
+        AT = F.AT()
+        m  = F.m()
+
+        # possible combinations of n-1 columns of AT
+        I = self.combinations(m)
         
         # linear independent combinations of AT
-        I_0 = self._I[np.sum(np.linalg.svd(AT.T[self._I,:], compute_uv=False) > 1e-10, axis=1) == self._n-1]
-        #I_0 = self._I[np.linalg.matrix_rank(AT.T[self._I,:]) == self._n-1]
+        I_0 = I[np.sum(np.linalg.svd(AT.T[I,:], compute_uv=False) > 1e-10, axis=1) == self._n-1]
         
         U   = AT[:, I_0].swapaxes(0,1)
         j   = U.shape[0]
@@ -146,13 +137,13 @@ class HyperPlaneShifting(Base):
         N = N / np.linalg.norm(N, axis=0)
         
         # compute distances
-        NTU = (N.T[:,np.newaxis] @ AT).reshape(-1,self._m)
+        NTU = (N.T[:,np.newaxis] @ AT).reshape(-1, m)
 
         I_max = NTU>0
         I_min = NTU<0
 
-        F_max = np.tile(f_max,(j,1))
-        F_min = np.tile(f_min,(j,1))
+        F_max = np.tile(F.f_max(),(j,1))
+        F_min = np.tile(F.f_min(),(j,1))
 
         D_1 = + np.sum(F_max*NTU*I_max, axis=1) + np.sum(F_min*NTU*I_min, axis=1)
         D_2 = - np.sum(F_max*NTU*I_min, axis=1) - np.sum(F_min*NTU*I_max, axis=1)  
@@ -177,21 +168,3 @@ class HyperPlaneShifting(Base):
             s = np.min(s)
 
         return s/1, s>=0
-
-
-class AdaptiveCWSolver(Base):
-
-    def __init__(self, m: int, n: int = 6):
-        
-        super().__init__(m, n)
-
-        self._solvers: dict[int, HyperPlaneShifting] = {}
-
-        for i in range(self._m+1):
-            self._solvers[i] = HyperPlaneShifting(i, self._n)
-
-    def eval(self, AT: np.ndarray, W: TbSet, F: TbTetherForceSet, tensioned: np.ndarray) -> Tuple[bool, float]:
-        
-        m = np.sum(tensioned)
-
-        return self._solvers[m].eval(AT[:,tensioned], W, F.f_min[tensioned], F.f_max[tensioned])
