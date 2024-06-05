@@ -57,7 +57,7 @@ class TbObject:
         # remove self from old parent's children
         if self._parent is not None:
             self._parent._remove_child(self)
-       
+        
         self._parent = value
         
         # add self to new parent's children
