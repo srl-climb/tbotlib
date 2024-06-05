@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from ..tools import lineseg_distance, tbbasefit, is_convex2, bbox_size
-from ..fdsolvers import AdaptiveCWSolver
+from ..fdsolvers import HyperPlaneShifting
 from ..matrices import TransformMatrix
 import numpy as np
 import openGJK_cython as gjk
@@ -29,10 +29,10 @@ class TbFeasibility(_Feasibility):
 
 class TbWrenchFeasibility(TbFeasibility):
 
-    def __init__(self, m: int = 10, n: int = 6, solver: AdaptiveCWSolver = None, threshold: float = 0.0):
+    def __init__(self, m: int = 10, n: int = 6, solver: HyperPlaneShifting = None, threshold: float = 0.0):
 
         if solver is None:
-            self.solver = AdaptiveCWSolver(m, n)
+            self.solver = HyperPlaneShifting()
         else:
             self.solver = solver
 
