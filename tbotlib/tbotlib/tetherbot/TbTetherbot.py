@@ -1,7 +1,7 @@
 from __future__      import annotations
-from ..fdsolvers     import QuadraticProgram, AdaptiveCWSolver
-from ..tools         import Ring, Mapping, hyperRectangle, lineseg_distance, tbbasefit, is_convex2, bbox_size
-from ..matrices      import StructureMatrix, TransformMatrix, rotM
+from ..fdsolvers     import QuadraticProgram, HyperPlaneShifting
+from ..tools         import Ring, Mapping, hyperRectangle
+from ..matrices      import TransformMatrix, rotM
 from ..visualization import TetherbotVisualizer
 from .TbObject       import TbObject
 from .TbPlatform     import TbPlatform
@@ -10,7 +10,7 @@ from .TbTether       import TbTether
 from .TbWall         import TbWall
 from .TbPart         import TbPart
 from .TbGeometry     import TbCylinder, TbSphere, TbTethergeometry
-from .TbSet          import TbSet, TbTetherForceSet
+from .TbSet          import TbTetherForceSet, TbWrenchSet
 from typing          import Tuple
 from scipy.optimize  import least_squares
 import numpy as np
@@ -18,7 +18,7 @@ import numpy as np
 class TbTetherbot(TbObject):
 
     def __init__(self, platform: TbPlatform = None, grippers: list[TbGripper] = None, tethers: list[TbTether] = None, wall: TbWall = None,
-                 w: np.ndarray = None, W: TbSet = None, F: TbTetherForceSet = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, 
+                 w: np.ndarray = None, W: TbWrenchSet = None, F: TbTetherForceSet = None, mapping: Mapping = None, aorder: Ring = None, mode_2d: bool = True, l_min: float = 0.012, l_max: float = 2, 
                  **kwargs) -> None:
         
         super().__init__(children = [platform, wall], **kwargs)
@@ -33,11 +33,11 @@ class TbTetherbot(TbObject):
         self._n         = 6
         self._A         = np.empty((3, self._m))
         self._B         = np.empty((3, self._m))
+        self._L         = np.empty((3, self._m))
         self._C         = np.empty((3, wall.n))
         self._tensioned = np.full(self._m, True, dtype=bool)
-        self._AT        = StructureMatrix()
-        self._fdsolver  = QuadraticProgram(self._m, self._n)
-        self._cwsolver  = AdaptiveCWSolver(self._m, self._n)
+        self._fdsolver  = QuadraticProgram()
+        self._cwsolver  = HyperPlaneShifting()
         self._aorder    = aorder
         self._mode_2d   = mode_2d
         self._l_min     = l_min
@@ -49,12 +49,13 @@ class TbTetherbot(TbObject):
             self._w = np.array(w)
 
         if F is None:
-            self.F = TbTetherForceSet(np.array([tether.f_min for tether in tethers]), np.array([tether.f_max for tether in tethers]))
+            self.F = TbTetherForceSet(np.array([tether.f_min for tether in tethers]), np.array([tether.f_max for tether in tethers]), parent = self)
         else:
             self.F = F
+            self.F.parent = self
 
         if W is None:
-            self.W = TbSet(parent = platform)
+            self.W = TbWrenchSet(parent = platform)
         else:
             self.W = W
             self.W.parent = platform
@@ -117,7 +118,7 @@ class TbTetherbot(TbObject):
 
         return self._A
 
-    @property   # Positions of the platform tether anchorpoints
+    @property   # Vectors from the platform center to the platform tether anchorpoints, referenced in platform coordinates
     def B_local(self) -> np.ndarray:
 
         for i in range(self._m):
@@ -125,11 +126,11 @@ class TbTetherbot(TbObject):
 
         return self._B
     
-    @property   # Positions of the platform tether anchorpoints
+    @property   # Vectors from the platform center to the platform tether anchorpoints, referenced in world coordinates
     def B_world(self) -> np.ndarray:
 
         for i in range(self._m):
-            self._B[:,i] = self.platform.anchorpoints[self._mapping.a_to_b[i,1]].r_world
+            self._B[:,i] = self.platform.anchorpoints[self._mapping.a_to_b[i,1]].r_world - self.platform.r_world
 
         return self._B
 
@@ -144,7 +145,10 @@ class TbTetherbot(TbObject):
     @property   # Tether vectors
     def L(self) -> np.ndarray:
 
-        return self.A_world - self.B_world
+        for i in range(self._m):
+            self._L[:,i] = self.grippers[self._mapping.a_to_b[i,0]].anchorpoint.r_world - self.platform.anchorpoints[self._mapping.a_to_b[i,1]].r_world
+
+        return self._L
 
     @property   # Tether unit vectors
     def N(self) -> np.ndarray:
@@ -155,17 +159,6 @@ class TbTetherbot(TbObject):
     def l(self) -> np.ndarray:
 
         return np.linalg.norm(self.L, axis=0)
-
-    @property   # Structure matrix (referenced to the platform coordinate frame!)
-    def AT(self) -> np.ndarray:
-        i = 0
-
-        for i in range(self._m):
-            self._A[:, i] = self.platform.R_world.T @ (self.grippers[self._mapping.a_to_b[i,0]].anchorpoint.r_world - self.platform.r_world)
-            self._B[:,i] = self.platform.anchorpoints[self._mapping.a_to_b[i,1]].r_local
-
-        return self._AT(self._A - self._B, self._B)
-
 
     @property   # wrench
     def w(self) -> np.ndarray:
@@ -231,12 +224,12 @@ class TbTetherbot(TbObject):
         
         return np.linalg.norm(np.sum(F, axis=2), axis=1), exitflag
 
-    def stability(self, W: np.ndarray = None) -> Tuple[bool, float]:
+    def stability(self, W: TbWrenchSet = None) -> Tuple[float, bool]:
 
         if W is None:
             W = self.W
         
-        return self._cwsolver.eval(self.AT, W, self.F, self._tensioned)
+        return self._cwsolver.eval(W, self.F)
 
     def tension(self, idx_gripper: int, value: bool) -> None:
         
@@ -276,44 +269,6 @@ class TbTetherbot(TbObject):
             else:
                 self.tension(grip_idx, True)
                 self.place(grip_idx, hold_idx, correct_pose)
-
-    def filter_holds(self, grip_idx: int, points: np.ndarray = None) -> np.ndarray:
-        
-        if points is None:
-            points = self.C_world
-        
-        # base of the plane to filter the holds
-        base = tbbasefit(self, output_format=1)
-        # ez is perpendicular to plane
-        
-        # index of the gripper within the order
-        order_idx = self._aorder.index(grip_idx)
-
-        filter = np.full(points.shape[1], False)
-
-        # project all points and gripper positions on to the plane
-        points  = base.inverse_transform(points, axis=0, copy=True).T[:,:2] 
-        right_2 = base.inverse_transform(self.grippers[self._aorder[order_idx-2]].r_world)[:2]
-        right_1 = base.inverse_transform(self.grippers[self._aorder[order_idx-1]].r_world)[:2]
-        left_1  = base.inverse_transform(self.grippers[self._aorder[order_idx+1]].r_world)[:2]
-        left_2  = base.inverse_transform(self.grippers[self._aorder[order_idx+2]].r_world)[:2]
-        # Note: gripper positions should be anticlockwise
-
-        # initalize polygon
-        polygon = np.array((right_2, right_1, [0,0], left_1, left_2))
-
-        for i in range(points.shape[0]):
-            # insert point into polygon
-            polygon[2,:] = points[i,:]
-            # check if point is within the arm reach
-            if lineseg_distance(polygon[2,:], polygon[1,:], polygon[3,:]) < self.platform.arm.workspace_radius:
-                # check if convex, filter out ill-conditioned polygons
-                if is_convex2(polygon, precision=6)[1] > 0: #>= (self.k-1):
-                    # filter out additional ill-conditioned polygons
-                    if bbox_size(polygon) > 0.51:
-                        filter[i] = True
-            
-        return filter.nonzero()[0]
         
     def remove_all_geometries(self) -> None:
 
