@@ -1,30 +1,32 @@
 from __future__ import annotations
 from qpsolvers  import solve_qp
+from typing import TYPE_CHECKING
 import numpy as np
 
+if TYPE_CHECKING:
+    from ..tetherbot import TbTetherForceSet
 
 class Base():
 
-    def __init__(self, m: int, n: int=6):
+    def __init__(self):
 
-        self._n     = n
-        self._m     = m
+        self._n         = 6
         self._check_res = False
 
-    def eval(self, AT: np.ndarray, w: np.ndarray, f_min: np.ndarray, f_max: np.ndarray) -> tuple[np.ndarray, int]:
+    def eval(self, w: np.ndarray, F: TbTetherForceSet) -> tuple[np.ndarray, int]:
 
-        f        = np.zeros((1, self._m))
+        f        = np.zeros((1, F.m()))
         exitflag = 0
 
         return f, exitflag
 
-    def check(self, AT: np.ndarray, w: np.ndarray, f: np.ndarray, exitflag: int) -> tuple[np.ndarray, int]:
+    def check(self, w: np.ndarray, F: TbTetherForceSet, f: np.ndarray, exitflag: int) -> tuple[np.ndarray, int]:
 
         # Check residual if desired and the results were valid
         if self._check_res == True and exitflag == 1:
             
             # Check residual
-            res = np.linalg.norm(np.matmul(AT,f)+w)
+            res = np.linalg.norm(np.matmul(F.AT(), f) + w)
             tf  = np.round(res, 4) == 0
 
             if tf == 0:
@@ -45,27 +47,26 @@ class QuadraticProgram(Base):
     min 1/2*x^T*P*x+q^t*x such that A*x=b
                                     lb<=x<=ub
     """
-
-    def __init__(self, m: int, n: int=6):
-
-        super().__init__(m, n)
-
-        self._P       = np.eye(self._m)
-        self._q       = np.zeros(self._m)
-        self._G       = np.vstack([np.eye(self._m),-np.eye(self._m)])
     
-    def eval(self, AT: np.ndarray, w: np.ndarray, f_min: np.ndarray, f_max: np.ndarray) -> tuple[np.ndarray, int]:
-        
-        # Solve the problem
+    def eval(self, w: np.ndarray, F: TbTetherForceSet) -> tuple[np.ndarray, int]:
+
         # x = solve_qp(P, q, G, h, A, b)
-        f = solve_qp(self._P, self._q, self._G, np.concatenate([f_max,-f_min]), AT, -w, solver = 'quadprog')
+        m = F.m()
+        P = np.eye(m)
+        q = np.zeros(m)
+        G = F.halfspaces()[:, :-1]
+        h = -F.halfspaces()[:, -1]
+        A = F.AT()
+        b = -w
+        f = solve_qp(P, q, G, h, A, b, solver = 'quadprog')
 
         if f is None:
             exitflag = 0
         else:
+            f = np.round(f, 6)
             exitflag = 1
 
-        return self.check(AT, w, f, exitflag)    
+        return self.check(w, F, f, exitflag)    
 
 
 class ImprovedClosedMethod(Base):
@@ -86,36 +87,38 @@ class ImprovedClosedMethod(Base):
                    0: No solution found
     """
 
-    def __init__(self, m: int, n: int=6):
+    def eval(self, w: np.ndarray, F: TbTetherForceSet) -> tuple[np.ndarray, int]:
 
-        super().__init__(m, n)
+        m = F.m()
+        
+        f_max = F.f_max()
+        f_min = F.f_min()
+        
+        AT = F.AT()
 
-        # Redundancy of the robot
-        self._r = self._m - self._n
-
-    def eval(self, AT: np.ndarray, w: np.ndarray, f_min: np.ndarray, f_max: np.ndarray) -> tuple[np.ndarray, int]:
+        # Redundancy
+        r = m - self._n
 
         # Helper matrix
-        self._H = np.vstack((f_min, f_max))
+        H = np.vstack((f_min, f_max))
 
         # Medium feasible cable force distribution
-        self._f_m = 0.5 * (f_min + f_max)
+        f_m = 0.5 * (f_min + f_max)
 
         # Preallocate force distribution vecotrs
-        f_v = np.zeros(self._m)
-        f   = np.zeros(self._m)
-
+        f_v = np.zeros(m)
+        f   = np.zeros(m)
+        
         # Active columns/elements
-        i = np.array(range(self._m))
-
-        for j in range(self._m):
-
+        i = np.array(range(m))
+        
+        for j in range(m):
+            
             # Compute variable part of the force distribution
-            # MATLAB: f_v(i) = -pinv(AT(:,i)*f_m(i))
-            f_v[i] = np.matmul(-np.linalg.pinv(AT[:,i]), w + np.matmul(AT[:,i], self._f_m[i]))
+            f_v[i] = np.matmul(-np.linalg.pinv(AT[:,i]), w + np.matmul(AT[:,i], f_m[i]))
 
             # Compute the force distribution
-            f[i] = np.around(self._f_m[i] + f_v[i], 5)
+            f[i] = np.around(f_m[i] + f_v[i], 5)
             
             # Solution found
             if np.all(f_min <= f) and np.all(f <= f_max):
@@ -123,7 +126,7 @@ class ImprovedClosedMethod(Base):
                 break
 
             # No solution found
-            elif np.any(np.linalg.norm(f_v[i]) > 0.5 * np.sqrt(self._m) * (f_max[i] - f_min[i])) or self._r < j:
+            elif np.any(np.linalg.norm(f_v[i]) > 0.5 * np.sqrt(m) * (f_max[i] - f_min[i])) or r < j:
                 exitflag = 0
                 break
             
@@ -131,7 +134,7 @@ class ImprovedClosedMethod(Base):
             (h, k) = self.maxsub(np.vstack((f_min - f, f - f_max)))
             
             # Set the cable force of the k-the cable to the maximum or minimum          
-            f[k] = self._H[h,k]
+            f[k] = H[h,k]
 
             # Reduce the order of the problem by dropping the k-th column/element
             i = i[i!=k]
@@ -140,7 +143,7 @@ class ImprovedClosedMethod(Base):
         return self.check(AT, w, f, exitflag)  
 
     @staticmethod
-    def maxsub(M):
+    def maxsub(M: np.ndarray) -> tuple[int, int]:
 
         """
         Returns the subscript of the maximum element in a matrix
