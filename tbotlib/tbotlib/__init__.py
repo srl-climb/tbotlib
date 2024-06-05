@@ -5,4 +5,5 @@ from .tetherbot     import *
 from .tools         import *
 from .navigation    import *
 from .visualization import *
+from .models        import *
 from .ml import *
