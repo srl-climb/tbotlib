@@ -424,7 +424,7 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
         
         if start is None:
             start = self._tetherbot.platform.T_world.decompose()      
-        
+
         # Coordinate frame for the search
         R = np.identity(6)
         R[:3,:3] = tbbasefit(self._tetherbot, output_format = 0)[1]
@@ -436,13 +436,10 @@ class TbPlatformAlignGraph(TbPlatformPoseGraph):
         path =  super(TbPlatformPoseGraph, self).search(start, self._goal1, transform)
 
         if path is not None:
-            self._v[:3] = self._goal2[:3]-self._goal1[:3]
-            self._u[:3] = self._tetherbot.platform.T_world.ez[:3]
-            self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.rotate_around_axis(ang3(self._v[:3], self._u[:3]), np.cross(self._v[:3], self._u[:3]))
+            #self._v[:3] = self._goal2[:3]-self._goal1[:3]
+            #self._u[:3] = self._tetherbot.platform.T_world.ez[:3]
+            #self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.rotate_around_axis(ang3(self._v[:3], self._u[:3]), np.cross(self._v[:3], self._u[:3]))
             path.replace(self._tetherbot.platform.T_world.decompose())
-
-        qs1 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal1))
-        qs2 = self._tetherbot.platform.arm.ivk(TransformMatrix(self._goal2))
 
         return path
 

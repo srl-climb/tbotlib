@@ -318,6 +318,8 @@ class PlanPickAndPlace2(PlanPickAndPlace):
                 next_state = 2
                 # NOTE: Actual tensioning happens during CommandPickGripper and CommandPlaceGripper,
                 # we only (un)tension the gripper here so that the path planner keeps the platform at a pose which is stable without the gripper to be picked/placed
+                print(current_state, tetherbot.platform.T_world.decompose(), tetherbot.stability())
+
             elif current_state == 2:
                 # move arm to gripper hoverpoint
                 tetherbot, commands, exitflag = self._arm2pose.plan(tetherbot, tetherbot.grippers[grip_idx].hoverpoint.T_world, commands)
@@ -368,7 +370,7 @@ class PlanPickAndPlace2(PlanPickAndPlace):
                 tetherbot.tension(grip_idx, True)
                 commands.append(CommandTensionTethers(grip_idx, True))
                 next_state = 0
-            
+           
             if exitflag is None or current_state == goal_state:
                 break
 
@@ -379,7 +381,7 @@ class PlanPickAndPlace2(PlanPickAndPlace):
             if commands_temp is not None:
                 commands = CommandList(commands_temp + commands)
             exitflag = True
-
+        
         return tetherbot, commands, exitflag
 
 class FastPlanPickAndPlace(AbstractPlanner):

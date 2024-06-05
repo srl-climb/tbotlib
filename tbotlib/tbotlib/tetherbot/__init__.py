@@ -14,4 +14,4 @@ from .TbWall            import TbWall
 from .tb2urdf           import tb2urdf
 from .tbExample         import tbExample
 from .TbCollidable      import TbCollidable, TbBoxCollidable, TbCylinderCollidable, TbSphereCollidable, TbTetherCollidable
-from .TbSet             import TbSet, TbElliptoidSet, TbElliptoidWrenchSet, TbPolytopeSet, TbRectangleSet, TbRectangleWrenchSet, TbTetherForceSet
+from .TbSet             import TbTetherGripperForceSet, TbSet, TbElliptoidWrenchSet, TbRectangleWrenchSet, TbTetherForceSet, TbPolytopeWrenchSet, TbWrenchSet
