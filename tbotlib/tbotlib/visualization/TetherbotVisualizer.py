@@ -3,7 +3,7 @@ from ..tetherbot    import TbObject, TbTetherbot
 from typing         import Type
 import open3d as o3d
 import numpy  as np
-
+import msvcrt
 
 class TetherbotVisualizer:
 
@@ -16,10 +16,6 @@ class TetherbotVisualizer:
         self._render.background_color = np.array((0.1,0.1,0.1))
         self._render.light_on = True
         self._render.mesh_show_wireframe = True
-
-	# causes error depending on open3d version!
-        #self._material = o3d.visualization.rendering.MaterialRecord()
-        #self._material.set_default_properties()
 
         self._tbobject = None
         self._geometries = []
@@ -85,6 +81,46 @@ class TetherbotVisualizer:
     def close(self) -> None:
 
         self._vi.close()
+
+    def save_camera_parameters(self, file: str):
+        
+        self._read_keyboard()
+        print('Press Enter to save camera paramters.')
+
+        parameters = None
+        while self.opened:
+            self.update()
+
+            if self._read_keyboard() == b'\r':
+                parameters = self._vi.get_view_control().convert_to_pinhole_camera_parameters()
+                break
+
+        if parameters is not None:
+            o3d.io.write_pinhole_camera_parameters(file, parameters)
+            print('Camera parameters saved under:', file)
+
+    def load_camera_parameters(self, file: str) -> None:
+
+        self._vi.get_view_control().convert_from_pinhole_camera_parameters(o3d.io.read_pinhole_camera_parameters(file))
+
+    def set_background_color(self, value: list) -> None:
+
+        self._render.background_color = value
+
+    def capture_screen_image(self, file: str) -> None:
+
+        self._vi.capture_screen_image(file , do_render=True)
+
+    @staticmethod
+    def _read_keyboard() -> str:
+
+        if msvcrt.kbhit():
+            return msvcrt.getch()
+        else:
+            return None
+
+        
+
 
 
 
