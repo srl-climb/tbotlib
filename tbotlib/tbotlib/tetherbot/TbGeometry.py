@@ -93,6 +93,7 @@ class TbGeometry(TbObject):
         else:
             self._geometry.vertices = o3d.utility.Vector3dVector((self.T_world.R @ self._vertices.T + self.T_world.r[:,None]).T)
             self._vertices_world = np.asarray(self._geometry.vertices)
+            self._geometry.compute_vertex_normals()
 
     def save_as_trianglemesh(self, filename: str, write_ascii: bool = False, compressed: bool = False, write_vertex_normals: bool = True,
                               write_vertex_colors: bool = True, write_triangle_uvs: bool = True, print_progress: bool = False):
