@@ -38,7 +38,6 @@ class TbTetherForceSet(TbSet):
                     [ 0,  0,  0]]])
 
     def __init__(self, f_min: Union[float, list, np.ndarray], f_max: Union[float, list, np.ndarray], parent: TbTetherbot = None, **kwargs) -> None:
-
         self._tetherbot = parent
         self._f_min = self._parse_to_array(f_min, self._tetherbot.m)
         self._f_max = self._parse_to_array(f_max, self._tetherbot.m)
@@ -88,7 +87,7 @@ class TbTetherForceSet(TbSet):
 
     @_check_cache
     def vertices(self) -> np.ndarray:
-
+        
         return self._vertices
 
     @_check_cache
