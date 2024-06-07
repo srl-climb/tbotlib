@@ -29,7 +29,7 @@ class TbFeasibility(_Feasibility):
 
 class TbWrenchFeasibility(TbFeasibility):
 
-    def __init__(self, m: int = 10, n: int = 6, solver: HyperPlaneShifting = None, threshold: float = 0.0):
+    def __init__(self, solver: HyperPlaneShifting = None, threshold: float = 0.0):
 
         if solver is None:
             self.solver = HyperPlaneShifting()
@@ -40,7 +40,7 @@ class TbWrenchFeasibility(TbFeasibility):
 
     def eval(self, tetherbot: TbTetherbot) -> bool:
 
-        return self.solver.eval(tetherbot.AT, tetherbot.W, tetherbot.F, tetherbot.tensioned)[0] >= self.threshold
+        return self.solver.eval(tetherbot.W, tetherbot.F, tetherbot.tensioned)[0] >= self.threshold
     
 
 class TbTetherLengthFeasibility(TbFeasibility):
