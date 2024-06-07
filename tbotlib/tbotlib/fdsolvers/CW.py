@@ -66,7 +66,7 @@ class QuickHull(Base):
         W_F = -F.AT() @ F.vertices().T
         
         # convex hull representation of the feasible force in the wrench space
-        W_F = qhull(W_F.T, qhull_options='Q14').equations.T
+        W_F = qhull(W_F.T, qhull_options='QJ').equations.T
         # Note: - input:  each column is a point
         #       - output: each column is normal, offset
 
@@ -78,7 +78,7 @@ class QuickHull(Base):
             s = -1
         else:
             s = np.min(s)
-       
+
         return s/1, s>=0
 
 
