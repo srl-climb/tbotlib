@@ -222,25 +222,31 @@ class TbWorkspace2(Workspace):
 
         self._grid = grid[mask]
         self._vals = np.zeros(self._grid.shape[0])
+        self._poses = np.zeros((self._grid.shape[0], 6))
 
-    def calculate(self, tetherbot: TbTetherbot) -> Tuple[float, np.ndarray]:
+    def calculate(self, tetherbot: TbTetherbot, init_pose: TransformMatrix = None) -> Tuple[float, np.ndarray]:
         
         self._tetherbot = deepcopy(tetherbot)
         self._tetherbot._update_transforms()
         self._vals[:] = 0
+        self._poses[:] = 0
 
-        # first guess
-        T = tbbasefit(self._tetherbot, output_format = 1, iters = 8)
+        if init_pose is None:
+            # first guess
+            T = tbbasefit(self._tetherbot, output_format = 1, iters = 8)
+        else:
+            T = init_pose
 
         # transformation of the workspace grid
         R = np.eye(6)
         r = np.zeros(6)
         r        = T.decompose()
         R[:3,:3] = T.R
-        
+  
         # analyse workspace
         for i in range(len(self._grid)):
-            self._tetherbot.platform.T_world = TransformMatrix(R @ self._grid[i] + r)
+            self._poses[i] = R @ self._grid[i] + r
+            self._tetherbot.platform.T_world = TransformMatrix(self._poses[i])
             self._vals[i] = self.feasiblity.eval(self._tetherbot)
 
             if self._vals[i] and self.mode == 'first':
