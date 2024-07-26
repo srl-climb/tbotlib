@@ -4,6 +4,7 @@ from typing         import Type
 import open3d as o3d
 import numpy  as np
 import msvcrt
+import matplotlib.pyplot as plt
 
 class TetherbotVisualizer:
 
@@ -109,7 +110,10 @@ class TetherbotVisualizer:
 
     def capture_screen_image(self, file: str) -> None:
 
-        self._vi.capture_screen_image(file , do_render=True)
+        #self._vi.capture_screen_image(file , do_render=True)
+        self.update()
+        image = self._vi.capture_screen_float_buffer(False)
+        plt.imsave(file,np.asarray(image), dpi=300)
 
     @staticmethod
     def _read_keyboard() -> str:
