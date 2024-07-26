@@ -38,14 +38,26 @@ class TbTetherForceSet(TbSet):
                     [ 0,  0,  0]]])
 
     def __init__(self, f_min: Union[float, list, np.ndarray], f_max: Union[float, list, np.ndarray], parent: TbTetherbot = None, **kwargs) -> None:
-        self._tetherbot = parent
-        self._f_min = self._parse_to_array(f_min, self._tetherbot.m)
-        self._f_max = self._parse_to_array(f_max, self._tetherbot.m)
         
-        self._update_cache()
+        self._f_min = f_min
+        self._f_max = f_max
+        self._tensioned = None
         
-        super().__init__(parent = parent, **kwargs)
-    
+        super().__init__(**kwargs)
+
+        if parent is not None:
+            self.parent = parent
+
+    @TbObject.parent.setter
+    def parent(self, value: TbTetherbot) -> None:
+        
+        TbObject.parent.fset(self, value)
+
+        self._tetherbot = value
+        self._f_min = self._parse_to_array(self._f_min, self._tetherbot.m)
+        self._f_max = self._parse_to_array(self._f_max, self._tetherbot.m)
+
+ 
     def _update_cache(self) -> None:
         
         self._tensioned = self._tetherbot.tensioned.copy()

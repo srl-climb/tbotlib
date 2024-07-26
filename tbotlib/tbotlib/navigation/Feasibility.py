@@ -39,7 +39,7 @@ class TbWrenchFeasibility(TbFeasibility):
         self.threshold = threshold
 
     def eval(self, tetherbot: TbTetherbot) -> bool:
-
+        
         return self.solver.eval(tetherbot.W, tetherbot.F, tetherbot.tensioned)[0] >= self.threshold
     
 
@@ -164,7 +164,7 @@ class StanceGeometricFeasibility(StanceFeasibility):
         self.max_width = max_width
 
     def eval(self, u: tuple, tetherbot: TbTetherbot, graph: TbStepGraph) -> bool:
-
+        
         # check convexity and size of the stance, only necessary for full stances
         if -1 not in u:
             feasibility = False
@@ -227,7 +227,7 @@ class StanceWrenchFeasiblity(StanceFeasibility):
                 
                 if feasibility:
                     graph.set_reachable_pose(u, pose)
-        
+
         return feasibility
         
 
@@ -254,6 +254,7 @@ class StepPathFeasibility(StepFeasibility):
             tetherbot.platform.T_world = TransformMatrix(graph.get_reachable_pose(u))
             tetherbot.tension(grip_idx, False)
             feasibility = self.platform2hold.plan(tetherbot, hold_idx, grip_idx)[2] is not None
+            tetherbot.tension(grip_idx, True)
         # k stance
         elif -1 in v:     
             # pick
@@ -311,7 +312,7 @@ class FeasibilityContainer(_Feasibility):
         for feasibility in self.feasibilities:
             
             feasible = feasibility.eval(*args)
-
+            
             if not feasible:
                 break
         

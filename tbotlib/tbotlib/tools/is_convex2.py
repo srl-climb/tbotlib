@@ -47,6 +47,7 @@ def is_convex2(points: np.ndarray, precision: int = 12) -> tuple[bool, int]:
 if __name__ == "__main__":
 
     arr = -np.array([[0,0],[0,1],[1,1],[2,1],[2,0]])
-
+    arr = np.array([[0,0],[0,1],[1,1],[1,0]])
+    arr = np.array([[0,0],[1,0],[1,1],[0,2]])
     print(is_convex2(arr))
 

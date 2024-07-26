@@ -69,7 +69,7 @@ class QuickHull(Base):
         W_F = qhull(W_F.T, qhull_options='QJ').equations.T
         # Note: - input:  each column is a point
         #       - output: each column is normal, offset
-
+        
         # calculate stability
         s = W.hdistance(W_F[:-1,:], W_F[-1,:])
         

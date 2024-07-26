@@ -349,7 +349,7 @@ class TbPlatformPoseGraph(GridGraph):
     def _calc_reachable(self, u: Tuple) -> bool:
         
         self._tetherbot.platform.T_world = self._tetherbot.platform.T_world.compose(u)   
-            
+
         return self.feasibility.eval(self._tetherbot)
 
     def is_goal(self, u: Tuple) -> bool:
