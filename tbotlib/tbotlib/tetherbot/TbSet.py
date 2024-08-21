@@ -1,7 +1,6 @@
 from __future__      import annotations
-from typing          import Tuple, Type, Callable, TYPE_CHECKING, Union
+from typing          import TYPE_CHECKING, Union
 from scipy.spatial   import HalfspaceIntersection
-from tbotlib.matrices import TransformMatrix
 from .TbObject        import TbObject
 from ..tools          import hyperRectangle, ang3
 from ..models         import GripperForceModel
@@ -211,7 +210,7 @@ class TbElliptoidWrenchSet(TbWrenchSet):
 
     def hdistance(self, normals: np.ndarray, offsets: np.ndarray) -> np.ndarray:
 
-        # closest or farest point to plane
+        # closest or farthest point to plane
         e = (self._A @ ((1 / np.linalg.norm(normals * self._a, axis=0)) * normals))
 
         return np.hstack((np.sum(e * normals, axis=0) - offsets, np.sum(-e * normals, axis=0) - offsets))
